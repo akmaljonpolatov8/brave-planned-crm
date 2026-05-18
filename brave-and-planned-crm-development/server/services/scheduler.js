@@ -1,58 +1,58 @@
 const cron = require("node-cron");
-const { db } = require("../db/database");
-const { sendSMS, getParentPhone } = require("./smsService");
+const { all, run } = require("../db/database");
+const { sendSMS } = require("./smsService");
 
-const buildMonthlyMessage = (fullName, month) =>
-  `Hurmatli ota-ona, ${fullName}ning ${month} oyi uchun to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.`;
+function previousMonth(date = new Date()) {
+  const next = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+  return next.toISOString().slice(0, 7);
+}
 
-async function sendMonthlyDebtNotifications() {
-  const month = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tashkent",
-    year: "numeric",
-    month: "2-digit",
-  }).format(new Date());
-  const students = db
-    .prepare(
-      `
-    SELECT s.*, p.id AS payment_id, p.amount, g.name AS group_name
-    FROM payments p
-    JOIN students s ON s.id = p.student_id
-    LEFT JOIN groups g ON g.id = p.group_id
-    WHERE p.month = ? AND p.paid = 0
-  `,
-    )
-    .all(month);
+async function notifyDebtorsForPreviousMonth() {
+  const month = previousMonth();
+  const rows = all(
+    `
+      SELECT
+        p.id,
+        p.student_id,
+        p.month,
+        p.amount,
+        p.paid,
+        s.full_name AS student_name,
+        s.parent_name,
+        s.parent_phone
+      FROM payments p
+      JOIN students s ON s.id = p.student_id
+      WHERE p.month = ? AND p.paid < p.amount
+    `,
+    [month],
+  );
 
-  const insertLog = db.prepare(`
-    INSERT INTO sms_logs (student_id, phone, message, status, sent_at)
-    VALUES (?, ?, ?, ?, datetime('now'))
-  `);
+  for (const row of rows) {
+    const amountLeft = row.amount - row.paid;
+    const message =
+      `Hurmatli ${row.parent_name || "ota-ona"}, ${row.student_name}ning ${row.month} oyi uchun ` +
+      `${amountLeft.toLocaleString("uz-UZ")} so'm to'lovi amalga oshirilmagan. ` +
+      "Iltimos to'lovni amalga oshiring. Brave and Planet ta'lim markazi.";
 
-  for (const student of students) {
-    const phone = getParentPhone(student);
-    const message = buildMonthlyMessage(student.full_name, month);
-    try {
-      await sendSMS(phone, message);
-      insertLog.run(student.id, phone, message, "sent");
-    } catch (error) {
-      insertLog.run(student.id, phone, message, "failed");
-    }
+    const result = await sendSMS(row.parent_phone, message);
+    run(
+      "INSERT INTO sms_logs (student_id, phone, message, month, status) VALUES (?, ?, ?, ?, ?)",
+      [
+        row.student_id,
+        row.parent_phone,
+        message,
+        row.month,
+        result.ok ? "sent" : "error",
+      ],
+    );
   }
 }
 
 function startScheduler() {
   cron.schedule(
-    "1 0 * * *",
+    "0 9 2 * *",
     async () => {
-      const day = Number(
-        new Intl.DateTimeFormat("en-US", {
-          timeZone: "Asia/Tashkent",
-          day: "2-digit",
-        }).format(new Date()),
-      );
-      if (day === 2) {
-        await sendMonthlyDebtNotifications();
-      }
+      await notifyDebtorsForPreviousMonth();
     },
     { timezone: "Asia/Tashkent" },
   );
@@ -60,6 +60,5 @@ function startScheduler() {
 
 module.exports = {
   startScheduler,
-  sendMonthlyDebtNotifications,
-  buildMonthlyMessage,
+  notifyDebtorsForPreviousMonth,
 };

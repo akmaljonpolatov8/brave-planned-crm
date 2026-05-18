@@ -1,198 +1,120 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../api/axios";
 import { GroupStatus } from "../components/dashboard/GroupStatus";
 import { PaymentTable } from "../components/dashboard/PaymentTable";
-import { StatCard } from "../components/dashboard/StatCard";
-import { TodayLessons } from "../components/dashboard/TodayLessons";
+import { TodayAttendance } from "../components/dashboard/TodayAttendance";
+import { StatCard } from "../components/ui/StatCard";
 import { useAuth } from "../context/AuthContext";
 
-type DashboardData = {
-  topStats?: {
-    students?: number;
-    groups?: number;
-    teachers?: number;
-    revenue?: number | null;
-    unpaid?: number;
-    studentsDelta?: number;
+type DashboardResponse = {
+  topStats: {
+    students: number;
+    groups: number;
+    teachers: number;
+    revenue: number | null;
+    debtors: number;
+    studentsDelta: number;
   };
-  lastPayments?: Array<{
+  lastPayments: Array<{
+    id: number;
     full_name: string;
-    group_name?: string | null;
+    group_name: string;
     amount: number;
     paid: number;
-    status?: "paid" | "unpaid" | "pending";
+    status: "paid" | "unpaid" | "pending";
   }>;
-  groupStatus?: Array<{
+  groupStatus: Array<{
     id: number;
     name: string;
-    total?: number;
-    present_today?: number;
+    total: number;
+    present_today: number;
   }>;
-  todayLessons?: Array<{
-    id?: number;
+  todayAttendance: Array<{
+    id: number;
     name: string;
-    time?: string | null;
-    marked?: boolean;
-    status?: string;
+    time: string;
+    marked: boolean;
+    status: string;
   }>;
 };
 
-function formatDateUz(date = new Date()) {
-  return new Intl.DateTimeFormat("uz-UZ", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(date);
-}
-
-function formatRevenueCompact(value: number) {
-  return new Intl.NumberFormat("en", {
+const compactMoney = (value: number) =>
+  new Intl.NumberFormat("uz-UZ", {
     notation: "compact",
     maximumFractionDigits: 1,
   }).format(value);
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="bp-panel animate-pulse p-6">
-        <div className="h-4 w-48 rounded-full bg-white/10" />
-        <div className="mt-3 h-10 w-80 rounded-lg bg-white/10" />
-        <div className="mt-3 h-4 w-64 rounded-full bg-white/10" />
-      </div>
-
-      <div className="stats-grid">
-        {Array.from({ length: 4 }).map((_, idx) => (
-          <div key={idx} className="stat-card animate-pulse">
-            <div className="h-4 w-28 rounded-full bg-white/10" />
-            <div className="mt-4 h-12 w-24 rounded-lg bg-white/10" />
-            <div className="mt-3 h-3 w-24 rounded-full bg-white/10" />
-          </div>
-        ))}
-      </div>
-
-      <div className="bp-panel animate-pulse p-5">
-        <div className="h-4 w-44 rounded-full bg-white/10" />
-        <div className="mt-4 space-y-3">
-          {Array.from({ length: 4 }).map((_, idx) => (
-            <div key={idx} className="h-12 rounded-lg bg-white/10" />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadDashboard = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await api.get("/dashboard");
-      setData(response.data);
-    } catch {
-      setError("Ma'lumot yuklanmadi, qayta urinish");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [data, setData] = useState<DashboardResponse | null>(null);
 
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+    api.get<DashboardResponse>("/dashboard").then((response) => setData(response.data));
+  }, []);
 
-  const userRole = user?.role;
-  const isOwner = userRole === "owner";
-  const isTeacher = userRole === "teacher";
-
-  const students = data?.topStats?.students ?? 0;
-  const groups = data?.topStats?.groups ?? 0;
-  const teachers = data?.topStats?.teachers ?? 0;
-  const revenue = data?.topStats?.revenue ?? 0;
-  const debtors = data?.topStats?.unpaid ?? 0;
-  const studentsDelta = data?.topStats?.studentsDelta ?? 0;
+  if (!data) {
+    return (
+      <div className="page-stack">
+        <div className="bp-card card-pad skeleton" style={{ height: 120 }} />
+        <div className="stats-grid">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="stat-card skeleton skeleton-card" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bp-dashboard space-y-6">
-      <header className="bp-panel p-6">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+    <div className="page-stack">
+      <section className="bp-card card-pad">
+        <div className="page-header">
           <div>
-            <h1 className="text-3xl font-extrabold text-[var(--text-primary)] sm:text-4xl">
-              Xush kelibsiz, {user?.username || "Foydalanuvchi"}!
-            </h1>
-            <p className="mt-2 text-sm text-[var(--text-muted)]">
-              Bugungi holat, to'lovlar va guruhlar bo'yicha nazorat paneli.
-            </p>
+            <h1>Xush kelibsiz, {user?.full_name}! 👋</h1>
+            <p>Bugungi holat va ko'rsatkichlar</p>
           </div>
-          <p className="text-sm font-medium text-[var(--text-muted)]">
-            {formatDateUz()}
-          </p>
+          <div className="topbar-meta">
+            {new Intl.DateTimeFormat("uz-UZ", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            }).format(new Date())}
+          </div>
         </div>
-      </header>
+      </section>
 
-      {loading ? <DashboardSkeleton /> : null}
+      <section className="stats-grid">
+        <StatCard
+          title="Jami o'quvchilar"
+          value={data.topStats.students}
+          note={`Bu oy +${data.topStats.studentsDelta} ta`}
+        />
+        <StatCard
+          title="Faol guruhlar"
+          value={data.topStats.groups}
+          note={`${data.topStats.teachers} o'qituvchi`}
+        />
+        {user?.role === "owner" && data.topStats.revenue !== null ? (
+          <StatCard
+            title="Daromad"
+            value={data.topStats.revenue}
+            note="so'm"
+            formatter={compactMoney}
+          />
+        ) : null}
+        <StatCard
+          title="Qarzdorlar"
+          value={data.topStats.debtors}
+          note="15-dan keyin"
+        />
+      </section>
 
-      {!loading && error ? (
-        <div className="bp-panel p-6 text-center">
-          <p className="text-[var(--text-primary)]">{error}</p>
-          <button className="btn-secondary mt-4" onClick={loadDashboard}>
-            Qayta urinish
-          </button>
-        </div>
-      ) : null}
+      <PaymentTable rows={data.lastPayments} />
 
-      {!loading && !error ? (
-        <>
-          {!isTeacher ? (
-            <section className="stats-grid">
-              <StatCard
-                title="Jami o'quvchilar"
-                value={students}
-                subText={`Bu oy +${studentsDelta} ta`}
-                tone="gold"
-                delayClass="bp-delay-0"
-              />
-              <StatCard
-                title="Faol guruhlar"
-                value={groups}
-                subText={`${teachers} ta o'qituvchi`}
-                tone="gold"
-                delayClass="bp-delay-1"
-              />
-              {userRole === "owner" ? (
-                <StatCard
-                  title="Daromad (oy)"
-                  value={revenue}
-                  subText="so'm"
-                  tone="gold"
-                  delayClass="bp-delay-2"
-                  formatter={formatRevenueCompact}
-                />
-              ) : null}
-              <StatCard
-                title="Qarzdorlar"
-                value={debtors}
-                subText="15-dan keyin"
-                tone="gold"
-                delayClass={isOwner ? "bp-delay-3" : "bp-delay-2"}
-              />
-            </section>
-          ) : null}
-
-          {!isTeacher ? <PaymentTable rows={data?.lastPayments || []} /> : null}
-
-          <section className="grid gap-6 lg:grid-cols-2">
-            <GroupStatus rows={data?.groupStatus || []} />
-            <TodayLessons rows={data?.todayLessons || []} />
-          </section>
-        </>
-      ) : null}
+      <section className="grid-two">
+        <GroupStatus rows={data.groupStatus} />
+        <TodayAttendance rows={data.todayAttendance} />
+      </section>
     </div>
   );
 }

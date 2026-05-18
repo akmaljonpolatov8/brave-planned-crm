@@ -1,16 +1,18 @@
 {
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "target": "ES2020",
     "module": "CommonJS",
-    "moduleResolution": "Node10",
-    "ignoreDeprecations": "6.0",
-    "rootDir": "./src",
-    "outDir": "./dist",
-    "strict": true,
+    "moduleResolution": "Node",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["./**/*.js"],
+  "exclude": ["dist", "node_modules", "db/brave_planet.sqlite*"]
 }

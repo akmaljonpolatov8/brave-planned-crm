@@ -1,90 +1,84 @@
 const express = require("express");
-const { db } = require("../db/database");
 const roleCheck = require("../middleware/roleCheck");
+const { all, get, run, transaction } = require("../db/database");
 
 const router = express.Router();
 
-function upsertAttendance(groupId, studentId, date, status) {
-  const existing = db
-    .prepare("SELECT id FROM attendance WHERE student_id = ? AND date = ?")
-    .get(studentId, date);
-
-  if (existing) {
-    db.prepare(
-      "UPDATE attendance SET group_id = ?, status = ? WHERE id = ?",
-    ).run(groupId, status, existing.id);
-  } else {
-    db.prepare(
-      "INSERT INTO attendance (student_id, group_id, date, status) VALUES (?, ?, ?, ?)",
-    ).run(studentId, groupId, date, status);
+router.get("/", (req, res) => {
+  const groupId = req.query.group_id;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+  if (!groupId) {
+    return res.json([]);
   }
-}
-
-router.get("/month/:groupId/:month", (req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT a.student_id, a.group_id, a.date, a.status, s.full_name
-     FROM attendance a
-     JOIN students s ON s.id = a.student_id
-     WHERE a.group_id = ? AND substr(a.date, 1, 7) = ?
-     ORDER BY s.full_name, a.date`,
-    )
-    .all(req.params.groupId, req.params.month);
-  res.json(rows);
-});
-
-router.get("/:groupId/:date", (req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT a.student_id, a.group_id, a.date, a.status, s.full_name
-     FROM attendance a
-     JOIN students s ON s.id = a.student_id
-     WHERE a.group_id = ? AND a.date = ?
-     ORDER BY s.full_name`,
-    )
-    .all(req.params.groupId, req.params.date);
-  res.json(rows);
+  const rows = all(
+    `
+      SELECT
+        s.id AS student_id,
+        s.full_name,
+        COALESCE(a.status, '') AS status,
+        COALESCE(a.note, '') AS note
+      FROM group_students gs
+      JOIN students s ON s.id = gs.student_id
+      LEFT JOIN attendance a ON a.group_id = gs.group_id AND a.student_id = s.id AND a.date = ?
+      WHERE gs.group_id = ? AND gs.is_active = 1
+      ORDER BY s.full_name
+    `,
+    [date, groupId],
+  );
+  return res.json(rows);
 });
 
 router.post("/", roleCheck("owner", "manager"), (req, res) => {
-  const groupId = Number(req.body.groupId);
-  const date = String(req.body.date);
-
-  if (Array.isArray(req.body.rows)) {
-    req.body.rows.forEach((row) => {
-      if (!row.studentId || !row.status) return;
-      upsertAttendance(groupId, Number(row.studentId), date, row.status);
-    });
-    return res.json({ success: true });
+  const { group_id, date, records = [] } = req.body || {};
+  if (!group_id || !date || !Array.isArray(records)) {
+    return res.status(400).json({ message: "group_id, date, records majburiy" });
   }
 
-  const { studentId, status } = req.body;
-  if (!groupId || !studentId || !date || !status) {
-    return res
-      .status(400)
-      .json({ message: "Attendance ma'lumotlari noto'g'ri" });
-  }
+  const save = transaction(() => {
+    for (const record of records) {
+      const existing = get(
+        "SELECT id FROM attendance WHERE group_id = ? AND student_id = ? AND date = ?",
+        [group_id, record.student_id, date],
+      );
+      if (existing) {
+        run(
+          "UPDATE attendance SET status = ?, note = ? WHERE id = ?",
+          [record.status, record.note || "", existing.id],
+        );
+      } else {
+        run(
+          "INSERT INTO attendance (group_id, student_id, date, status, note) VALUES (?, ?, ?, ?, ?)",
+          [group_id, record.student_id, date, record.status, record.note || ""],
+        );
+      }
+    }
+  });
 
-  upsertAttendance(groupId, Number(studentId), date, status);
-  return res.json({ success: true });
+  save();
+  return res.json({ ok: true });
 });
 
 router.get("/report", (req, res) => {
-  const from = req.query.from || new Date().toISOString().slice(0, 10);
-  const to = req.query.to || new Date().toISOString().slice(0, 10);
-  const rows = db
-    .prepare(
-      `SELECT g.id AS group_id, g.name AS group_name,
-      COUNT(CASE WHEN a.status = 'present' THEN 1 END) AS present_count,
-      COUNT(CASE WHEN a.status = 'absent' THEN 1 END) AS absent_count
-     FROM groups g
-     LEFT JOIN attendance a ON a.group_id = g.id AND a.date BETWEEN ? AND ?
-     GROUP BY g.id
-     ORDER BY g.name`,
-    )
-    .all(from, to);
-
-  res.json({ from, to, report: rows });
+  const { group_id, month } = req.query;
+  if (!group_id || !month) {
+    return res.json([]);
+  }
+  const rows = all(
+    `
+      SELECT
+        s.id AS student_id,
+        s.full_name,
+        a.date,
+        a.status
+      FROM group_students gs
+      JOIN students s ON s.id = gs.student_id
+      LEFT JOIN attendance a ON a.group_id = gs.group_id AND a.student_id = s.id AND substr(a.date, 1, 7) = ?
+      WHERE gs.group_id = ? AND gs.is_active = 1
+      ORDER BY s.full_name, a.date
+    `,
+    [month, group_id],
+  );
+  return res.json(rows);
 });
 
 module.exports = router;

@@ -1,26 +1,43 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { ReactNode } from "react";
 import api from "../api/axios";
-import type { User } from "../types";
+
+export type UserRole = "owner" | "manager" | "teacher";
+
+export type User = {
+  id: number;
+  username: string;
+  role: UserRole;
+  full_name: string;
+};
 
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  refresh: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const refresh = async () => {
+    const response = await api.get<User>("/auth/me");
+    setUser(response.data);
+  };
+
   useEffect(() => {
-    api
-      .get("/auth/me")
-      .then((res) => setUser(res.data))
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
+    refresh().catch(() => setUser(null)).finally(() => setLoading(false));
   }, []);
 
   const value = useMemo(
@@ -28,13 +45,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       loading,
       async login(username: string, password: string) {
-        const response = await api.post("/auth/login", { username, password });
-        setUser(response.data.user);
+        await api.post("/auth/login", { username, password });
+        await refresh();
       },
-      logout() {
-        api.post("/auth/logout").catch(() => undefined);
+      async logout() {
+        await api.post("/auth/logout");
         setUser(null);
       },
+      refresh,
     }),
     [loading, user],
   );
@@ -44,6 +62,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const value = useContext(AuthContext);
-  if (!value) throw new Error("AuthProvider topilmadi");
+  if (!value) {
+    throw new Error("AuthProvider topilmadi");
+  }
   return value;
 }

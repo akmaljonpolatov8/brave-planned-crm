@@ -1,189 +1,164 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../api/axios";
-import { PageShell } from "../components/PageShell";
-import type { Group, Student } from "../types";
+import { Button } from "../components/ui/Button";
+import { useAuth } from "../context/AuthContext";
+import { canManage } from "../lib/permissions";
+
+type Group = { id: number; name: string };
+type AttendanceRow = {
+  student_id: number;
+  full_name: string;
+  status: string;
+  note: string;
+};
+
+const statuses = [
+  ["present", "✓ Keldi"],
+  ["absent", "✗ Kelmadi"],
+  ["late", "⏰ Kech"],
+  ["excused", "📋 Sabab"],
+] as const;
 
 export function AttendancePage() {
+  const { user } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState("");
-  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
-  const [attendance, setAttendance] = useState<
-    Record<string, Record<string, "present" | "absent">>
-  >({});
-  const [loading, setLoading] = useState(false);
+  const [groupId, setGroupId] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [rows, setRows] = useState<AttendanceRow[]>([]);
+  const readOnly = !canManage(user);
 
-  useEffect(() => {
-    api.get("/groups").then((res) => {
-      setGroups(res.data);
-      if (!selectedGroup && res.data[0]) {
-        setSelectedGroup(String(res.data[0].id));
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    api.get("/students").then((res) => setStudents(res.data));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedGroup) return;
-    setLoading(true);
-    api
-      .get(`/attendance/month/${selectedGroup}/${month}`)
-      .then((res) => {
-        const next: Record<string, Record<string, "present" | "absent">> = {};
-        (
-          res.data as Array<{
-            student_id: number;
-            date: string;
-            status: "present" | "absent";
-          }>
-        ).forEach((item) => {
-          const studentKey = String(item.student_id);
-          if (!next[studentKey]) next[studentKey] = {};
-          next[studentKey][item.date] = item.status;
-        });
-        setAttendance(next);
-      })
-      .finally(() => setLoading(false));
-  }, [month, selectedGroup]);
-
-  const currentGroupStudents = useMemo(
-    () =>
-      students.filter(
-        (student) => String(student.group_id || "") === selectedGroup,
-      ),
-    [selectedGroup, students],
-  );
-
-  const days = useMemo(() => {
-    const [year, monthIndex] = month.split("-").map(Number);
-    const totalDays = new Date(year, monthIndex, 0).getDate();
-    return Array.from({ length: totalDays }, (_, index) => {
-      const day = String(index + 1).padStart(2, "0");
-      return `${month}-${day}`;
-    });
-  }, [month]);
-
-  const toggleCell = async (studentId: number, dateValue: string) => {
-    const current = attendance[String(studentId)]?.[dateValue];
-    const nextStatus = current === "present" ? "absent" : "present";
-
-    setAttendance((currentMap) => ({
-      ...currentMap,
-      [studentId]: {
-        ...(currentMap[String(studentId)] || {}),
-        [dateValue]: nextStatus,
-      },
-    }));
-
-    try {
-      await api.post("/attendance", {
-        groupId: Number(selectedGroup),
-        studentId,
-        date: dateValue,
-        status: nextStatus,
-      });
-      toast.success("Davomat saqlandi");
-    } catch {
-      toast.error("Davomat saqlanmadi");
+  const load = async () => {
+    const groupsResponse = await api.get<Group[]>("/groups");
+    setGroups(groupsResponse.data);
+    if (!groupId && groupsResponse.data[0]) {
+      setGroupId(String(groupsResponse.data[0].id));
     }
   };
 
+  useEffect(() => {
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (!groupId) return;
+    api
+      .get<AttendanceRow[]>("/attendance", { params: { group_id: groupId, date } })
+      .then((response) => setRows(response.data));
+  }, [groupId, date]);
+
+  const summary = useMemo(() => {
+    const total = rows.length || 1;
+    const present = rows.filter((row) => row.status === "present").length;
+    const late = rows.filter((row) => row.status === "late").length;
+    return {
+      total: rows.length,
+      average: Math.round(((present + late) / total) * 100),
+    };
+  }, [rows]);
+
+  const updateStatus = (studentId: number, status: string) => {
+    if (readOnly) return;
+    setRows((current) =>
+      current.map((row) =>
+        row.student_id === studentId ? { ...row, status } : row,
+      ),
+    );
+  };
+
+  const save = async () => {
+    await api.post("/attendance", {
+      group_id: Number(groupId),
+      date,
+      records: rows.map((row) => ({
+        student_id: row.student_id,
+        status: row.status || "absent",
+        note: row.note || "",
+      })),
+    });
+    toast.success("Davomat saqlandi");
+  };
+
   return (
-    <PageShell
-      title="Davomat"
-      description="Guruh bo'yicha oylik grid va bir bosishda saqlash."
-    >
-      <div className="panel grid gap-4 p-4 lg:grid-cols-[1.3fr_1fr_1fr]">
-        <select
-          className="input"
-          value={selectedGroup}
-          onChange={(e) => setSelectedGroup(e.target.value)}
-        >
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
-        <input
-          className="input"
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-        />
-        <div className="flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-sm text-white/70">
-          <span>
-            {loading
-              ? "Yuklanmoqda..."
-              : `${currentGroupStudents.length} o'quvchi`}
-          </span>
-          <span className="text-[#46CFB0]">Auto-save</span>
+    <div className="page-stack">
+      <div className="toolbar">
+        <div>
+          <h1>Davomat</h1>
+          <p>
+            {readOnly
+              ? "Teacher uchun faqat ko'rish rejimi"
+              : "Owner va manager yozishi mumkin"}
+          </p>
         </div>
+        {!readOnly ? <Button onClick={save}>Saqlash</Button> : null}
       </div>
 
-      <div className="panel overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="min-w-max">
-            <thead>
-              <tr>
-                <th className="sticky left-0 z-10 bg-[#042424] text-left">
-                  O'quvchi
-                </th>
-                {days.map((dateValue) => (
-                  <th key={dateValue} className="text-center">
-                    {Number(dateValue.slice(-2))}
-                  </th>
+      <section className="bp-card card-pad">
+        <div className="toolbar-filters">
+          <div className="filter-box">
+            <label className="form-label">
+              Guruh
+              <select
+                className="bp-select"
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+              >
+                {groups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {currentGroupStudents.length ? (
-                currentGroupStudents.map((student) => (
-                  <tr key={student.id}>
-                    <td className="sticky left-0 z-10 bg-[#042424] whitespace-nowrap font-medium">
-                      {student.full_name}
-                    </td>
-                    {days.map((dateValue) => {
-                      const status =
-                        attendance[String(student.id)]?.[dateValue] || null;
-                      const isPresent = status === "present";
-                      const isAbsent = status === "absent";
-
-                      return (
-                        <td
-                          key={`${student.id}-${dateValue}`}
-                          className="text-center"
-                        >
-                          <button
-                            type="button"
-                            className={`mx-auto grid h-9 w-9 place-items-center rounded-full border text-sm transition ${isPresent ? "border-[#46CFB0] bg-[#46CFB0]/20 text-[#46CFB0]" : isAbsent ? "border-[#ff6b6b] bg-[#ff6b6b]/20 text-[#ff6b6b]" : "border-white/10 bg-white/5 text-white/35 hover:border-[#46CFB0]/40 hover:text-[#46CFB0]"}`}
-                            onClick={() => toggleCell(student.id, dateValue)}
-                          >
-                            {isPresent ? "✓" : isAbsent ? "✕" : "•"}
-                          </button>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={days.length + 1}
-                    className="py-10 text-center text-white/50"
-                  >
-                    Bu guruhda o'quvchi topilmadi.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </select>
+            </label>
+          </div>
+          <div className="filter-box">
+            <label className="form-label">
+              Sana
+              <input
+                className="bp-input"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </label>
+          </div>
         </div>
-      </div>
-    </PageShell>
+      </section>
+
+      <section className="grid-two">
+        <div className="bp-card card-pad">
+          <h3>Bugungi belgilash</h3>
+          <div className="page-stack" style={{ marginTop: 16 }}>
+            {rows.map((row) => (
+              <div key={row.student_id} className="bp-card card-pad">
+                <div className="page-header">
+                  <strong>{row.full_name}</strong>
+                  <span>{row.status || "Tanlanmagan"}</span>
+                </div>
+                <div className="attendance-actions" style={{ marginTop: 12 }}>
+                  {statuses.map(([value, label]) => (
+                    <button
+                      key={value}
+                      className={`status-chip ${row.status === value ? `active-${value}` : ""}`}
+                      onClick={() => updateStatus(row.student_id, value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bp-card card-pad">
+          <h3>Statistika</h3>
+          <div className="page-stack" style={{ marginTop: 16 }}>
+            <div>Jami o'quvchilar: {summary.total}</div>
+            <div>O'rtacha davomat: {summary.average}%</div>
+            <div>Tanlangan sana: {date}</div>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }

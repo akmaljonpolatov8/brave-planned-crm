@@ -1,60 +1,161 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../api/axios";
-import { Modal } from "../components/Modal";
-import { PageShell } from "../components/PageShell";
-import type { Teacher } from "../types";
+import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
+import { Table } from "../components/ui/Table";
+import { useAuth } from "../context/AuthContext";
+import { canManage, isOwner } from "../lib/permissions";
+
+type Teacher = {
+  id: number;
+  full_name: string;
+  phone: string;
+  username: string;
+  is_active: number;
+  group_count: number;
+};
+
+const emptyForm = {
+  full_name: "",
+  phone: "",
+  username: "",
+  password: "",
+  is_active: 1,
+};
 
 export function TeachersPage() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const { user } = useAuth();
+  const [rows, setRows] = useState<Teacher[]>([]);
+  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Teacher | null>(null);
-  const [form, setForm] = useState({ name: "", phone: "" });
+  const [form, setForm] = useState(emptyForm);
 
-  const load = () => api.get("/teachers").then((res) => setTeachers(res.data));
-  useEffect(() => { load(); }, []);
+  const load = async () => {
+    const response = await api.get<Teacher[]>("/teachers");
+    setRows(response.data);
+  };
 
-  const submit = async () => {
-    if (!form.name) return toast.error("Ism kiritilsin");
-    if (editing?.id) await api.put(`/teachers/${editing.id}`, form);
-    else await api.post("/teachers", form);
-    toast.success("O'qituvchi saqlandi");
-    setEditing(null);
-    setForm({ name: "", phone: "" });
+  useEffect(() => {
     load();
+  }, []);
+
+  const save = async () => {
+    if (editing) {
+      await api.put(`/teachers/${editing.id}`, form);
+    } else {
+      await api.post("/teachers", form);
+    }
+    toast.success("Saqlandi");
+    setOpen(false);
+    setEditing(null);
+    setForm(emptyForm);
+    await load();
   };
 
   return (
-    <PageShell title="O'qituvchilar" description="O'qituvchilar va ularga biriktirilgan guruhlar.">
-      <div className="mb-4">
-        <button className="btn-primary" onClick={() => { setEditing({ id: 0, name: "", phone: "" }); setForm({ name: "", phone: "" }); }}>
-          Yangi o'qituvchi
-        </button>
+    <div className="page-stack">
+      <div className="toolbar">
+        <div>
+          <h1>O'qituvchilar</h1>
+          <p>Teacher akkauntlari va guruh birikmalari</p>
+        </div>
+        {canManage(user) ? (
+          <Button onClick={() => setOpen(true)}>Yangi o'qituvchi</Button>
+        ) : null}
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        {teachers.map((teacher) => (
-          <div key={teacher.id} className="panel p-5">
-            <div className="font-semibold">{teacher.name}</div>
-            <div className="mt-2 text-sm text-white/60">{teacher.phone || "Telefon kiritilmagan"}</div>
-            <div className="mt-2 text-sm text-white/60">{teacher.group_count || 0} ta guruh</div>
-            <div className="mt-4 flex gap-3">
-              <button className="btn-secondary" onClick={() => { setEditing(teacher); setForm({ name: teacher.name, phone: teacher.phone || "" }); }}>Tahrirlash</button>
-              <button className="btn-danger" onClick={async () => { if (confirm("O'chirilsinmi?")) { await api.delete(`/teachers/${teacher.id}`); load(); } }}>O'chirish</button>
-            </div>
-          </div>
+
+      <Table columns={["Ism", "Telefon", "Username", "Guruhlar", "Holat", "Amal"]}>
+        {rows.map((row) => (
+          <tr key={row.id}>
+            <td>{row.full_name}</td>
+            <td>{row.phone || "—"}</td>
+            <td>{row.username || "—"}</td>
+            <td>{row.group_count}</td>
+            <td>{row.is_active ? "Faol" : "Noaktiv"}</td>
+            <td>
+              <div className="btn-row">
+                {canManage(user) ? (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setEditing(row);
+                      setForm({
+                        full_name: row.full_name,
+                        phone: row.phone || "",
+                        username: row.username || "",
+                        password: "",
+                        is_active: row.is_active,
+                      });
+                      setOpen(true);
+                    }}
+                  >
+                    Tahrirlash
+                  </Button>
+                ) : null}
+                {isOwner(user) ? (
+                  <Button
+                    variant="danger"
+                    onClick={async () => {
+                      await api.delete(`/teachers/${row.id}`);
+                      toast.success("O'qituvchi o'chirildi");
+                      await load();
+                    }}
+                  >
+                    O'chirish
+                  </Button>
+                ) : null}
+              </div>
+            </td>
+          </tr>
         ))}
-      </div>
-      {editing ? (
-        <Modal title="O'qituvchi" onClose={() => setEditing(null)}>
-          <div className="grid gap-4">
-            <input className="input" value={form.name} onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))} placeholder="Ism" />
-            <input className="input" value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} placeholder="Telefon" />
+      </Table>
+
+      <Modal
+        open={open}
+        title={editing ? "O'qituvchini tahrirlash" : "Yangi o'qituvchi"}
+        onClose={() => setOpen(false)}
+      >
+        <div className="form-grid">
+          <div className="form-two">
+            <label className="form-label">
+              Ism
+              <input
+                className="bp-input"
+                value={form.full_name}
+                onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+              />
+            </label>
+            <label className="form-label">
+              Telefon
+              <input
+                className="bp-input"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </label>
           </div>
-          <div className="mt-5 flex justify-end gap-3">
-            <button className="btn-secondary" onClick={() => setEditing(null)}>Bekor qilish</button>
-            <button className="btn-primary" onClick={submit}>Saqlash</button>
+          <div className="form-two">
+            <label className="form-label">
+              Username
+              <input
+                className="bp-input"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+              />
+            </label>
+            <label className="form-label">
+              Parol
+              <input
+                className="bp-input"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              />
+            </label>
           </div>
-        </Modal>
-      ) : null}
-    </PageShell>
+          <Button onClick={save}>Saqlash</Button>
+        </div>
+      </Modal>
+    </div>
   );
 }

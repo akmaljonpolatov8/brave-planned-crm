@@ -1,57 +1,92 @@
 const express = require("express");
-const { db } = require("../db/database");
 const roleCheck = require("../middleware/roleCheck");
+const { all, get, run, transaction } = require("../db/database");
 
 const router = express.Router();
 
+function currentMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
+
 router.get("/", (req, res) => {
-  const month = req.query.month || new Date().toISOString().slice(0, 7);
-  const groupId = req.query.group_id || null;
-  const rows = db
-    .prepare(
-      `
-    SELECT p.*, s.full_name, g.name AS group_name
-    FROM payments p
-    JOIN students s ON s.id = p.student_id
-    LEFT JOIN groups g ON g.id = p.group_id
-    WHERE p.month = ? AND (? IS NULL OR p.group_id = ?)
-    ORDER BY s.full_name
-  `,
-    )
-    .all(month, groupId, groupId);
-
-  const summary =
-    req.user.role === "owner"
-      ? db
-          .prepare(
-            `
-          SELECT COALESCE(SUM(amount), 0) AS total_revenue,
-                 COUNT(CASE WHEN paid = 1 THEN 1 END) AS paid_count,
-                 COUNT(CASE WHEN paid = 0 THEN 1 END) AS unpaid_count
-          FROM payments
-          WHERE month = ? AND (? IS NULL OR group_id = ?)
-        `,
-          )
-          .get(month, groupId, groupId)
-      : null;
-
-  res.json({ rows, summary });
+  const month = req.query.month || currentMonth();
+  const groupId = req.query.group_id;
+  const rows = all(
+    `
+      SELECT
+        p.*,
+        s.full_name,
+        g.name AS group_name,
+        CASE
+          WHEN p.paid >= p.amount THEN 'paid'
+          WHEN p.paid > 0 THEN 'pending'
+          ELSE 'unpaid'
+        END AS status
+      FROM payments p
+      JOIN students s ON s.id = p.student_id
+      JOIN groups g ON g.id = p.group_id
+      WHERE p.month = ?
+        AND (? IS NULL OR p.group_id = ?)
+      ORDER BY s.full_name
+    `,
+    [month, groupId || null, groupId || null],
+  );
+  return res.json(rows);
 });
 
-router.patch("/:id/pay", roleCheck("owner", "manager"), (req, res) => {
-  db.prepare(
-    "UPDATE payments SET paid = 1, paid_at = datetime('now') WHERE id = ?",
-  ).run(req.params.id);
-  res.json({ success: true });
+router.post("/generate", roleCheck("owner"), (_req, res) => {
+  const month = currentMonth();
+  const activeLinks = all(
+    `
+      SELECT
+        gs.student_id,
+        gs.group_id,
+        g.monthly_fee
+      FROM group_students gs
+      JOIN groups g ON g.id = gs.group_id
+      WHERE gs.is_active = 1 AND g.is_active = 1
+    `,
+  );
+
+  const generate = transaction(() => {
+    for (const row of activeLinks) {
+      run(
+        `
+          INSERT INTO payments (student_id, group_id, month, amount, paid, note)
+          VALUES (?, ?, ?, ?, 0, '')
+          ON CONFLICT(student_id, group_id, month) DO UPDATE SET
+            amount = excluded.amount
+          WHERE payments.paid = 0
+        `,
+        [row.student_id, row.group_id, month, row.monthly_fee],
+      );
+    }
+  });
+
+  generate();
+  return res.json({ ok: true, month });
 });
 
 router.put("/:id", roleCheck("owner", "manager"), (req, res) => {
-  const { amount } = req.body;
-  db.prepare("UPDATE payments SET amount = ? WHERE id = ?").run(
-    Number(amount),
-    req.params.id,
+  const current = get("SELECT * FROM payments WHERE id = ?", [req.params.id]);
+  if (!current) {
+    return res.status(404).json({ message: "To'lov topilmadi" });
+  }
+
+  const { paid = current.paid, note = current.note || "", amount = current.amount } = req.body || {};
+  const normalized = Number(paid) || 0;
+  const normalizedAmount = Number(amount) || 0;
+  run(
+    "UPDATE payments SET amount = ?, paid = ?, paid_at = ?, note = ? WHERE id = ?",
+    [
+      normalizedAmount,
+      normalized,
+      normalized > 0 ? new Date().toISOString() : null,
+      note,
+      req.params.id,
+    ],
   );
-  res.json({ success: true });
+  return res.json(get("SELECT * FROM payments WHERE id = ?", [req.params.id]));
 });
 
 module.exports = router;

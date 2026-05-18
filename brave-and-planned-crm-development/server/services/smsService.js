@@ -1,36 +1,51 @@
-const normalizePhone = (phone) => {
-  if (!phone) return null;
-  return String(phone).replace(/[-\s]/g, "").trim() || null;
-};
+const axios = require("axios");
 
-const getParentPhone = (student) => {
-  return student.ota_phone || student.ona_phone || student.telefon || null;
-};
+let eskizToken = null;
+let eskizTokenAt = 0;
 
-const sendSMS = async (phone, message) => {
-  const cleanPhone = normalizePhone(phone);
-  if (!cleanPhone) {
-    return { success: false, message: "Telefon topilmadi" };
-  }
-
-  const response = await fetch(process.env.TEXTUP_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.TEXTUP_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      phone: cleanPhone,
-      message,
-      from: "BravePlanet",
-    }),
+async function authenticateEskiz() {
+  const response = await axios.post("https://notify.eskiz.uz/api/auth/login", {
+    email: process.env.ESKIZ_EMAIL,
+    password: process.env.ESKIZ_PASSWORD,
   });
 
-  return response.json();
-};
+  eskizToken = response.data?.data?.token || response.data?.token || null;
+  eskizTokenAt = Date.now();
+  return eskizToken;
+}
+
+async function getEskizToken() {
+  if (eskizToken && Date.now() - eskizTokenAt < 1000 * 60 * 50) {
+    return eskizToken;
+  }
+  return authenticateEskiz();
+}
+
+async function sendSMS(phone, message) {
+  try {
+    const token = await getEskizToken();
+    const response = await axios.post(
+      "https://notify.eskiz.uz/api/message/sms/send",
+      {
+        mobile_phone: phone,
+        message,
+        from: process.env.ESKIZ_FROM || "4546",
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+
+    return { ok: true, data: response.data };
+  } catch (error) {
+    const payload = error.response?.data || error.message;
+    console.error("Eskiz send failed", payload);
+    return { ok: false, error: payload };
+  }
+}
 
 module.exports = {
   sendSMS,
-  getParentPhone,
-  normalizePhone,
 };

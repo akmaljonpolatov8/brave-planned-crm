@@ -1,5 +1,5 @@
-import type { UserRole } from "../types";
+import type { User } from "../context/AuthContext";
 
-export const canSeeRevenue = (role?: UserRole) => role === "owner";
-export const canDelete = (role?: UserRole) => role === "owner";
-export const canManage = (role?: UserRole) => role === "owner" || role === "manager";
+export const isOwner = (user: User | null) => user?.role === "owner";
+export const canManage = (user: User | null) =>
+  user?.role === "owner" || user?.role === "manager";

@@ -1,0 +1,8 @@
+brave-and-planned-crm-development/node_modules/
+brave-and-planned-crm-development/client/dist/
+brave-and-planned-crm-development/dist/
+brave-and-planned-crm-development/server/dist/
+brave-and-planned-crm-development/server/db/*.sqlite
+brave-and-planned-crm-development/server/db/*.sqlite-shm
+brave-and-planned-crm-development/server/db/*.sqlite-wal
+brave-and-planned-crm-development/.env

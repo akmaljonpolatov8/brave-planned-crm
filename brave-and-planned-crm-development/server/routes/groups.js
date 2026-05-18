@@ -1,98 +1,124 @@
 const express = require("express");
-const { db } = require("../db/database");
 const roleCheck = require("../middleware/roleCheck");
+const { all, get, run } = require("../db/database");
 
 const router = express.Router();
 
-router.get("/", (_req, res) => {
-  const groups = db.prepare(`
-    SELECT g.*, t.name AS teacher_name, COUNT(s.id) AS student_count
-    FROM groups g
-    LEFT JOIN teachers t ON t.id = g.teacher_id
-    LEFT JOIN students s ON s.group_id = g.id
-    GROUP BY g.id
-    ORDER BY g.name
-  `).all();
-  res.json(groups);
-});
+function currentMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
 
-router.get("/:id", (req, res) => {
-  const group = db.prepare(`
-    SELECT g.*, t.name AS teacher_name
-    FROM groups g
-    LEFT JOIN teachers t ON t.id = g.teacher_id
-    WHERE g.id = ?
-  `).get(req.params.id);
-  const students = db.prepare(`
-    SELECT s.*, p.amount, p.paid, p.month
-    FROM students s
-    LEFT JOIN payments p ON p.student_id = s.id AND p.month = ?
-    WHERE s.group_id = ?
-    ORDER BY s.full_name
-  `).all(new Date().toISOString().slice(0, 7), req.params.id);
-  res.json({ ...group, students });
+router.get("/", (_req, res) => {
+  const rows = all(
+    `
+      SELECT
+        g.*,
+        t.full_name AS teacher_name,
+        COUNT(gs.student_id) AS student_count
+      FROM groups g
+      LEFT JOIN teachers t ON t.id = g.teacher_id
+      LEFT JOIN group_students gs ON gs.group_id = g.id AND gs.is_active = 1
+      GROUP BY g.id
+      ORDER BY g.created_at DESC
+    `,
+  );
+  return res.json(rows);
 });
 
 router.post("/", roleCheck("owner", "manager"), (req, res) => {
-  const { name, teacher_id, course, schedule_time, schedule_days, monthly_fee } = req.body;
-  const result = db.prepare(`
-    INSERT INTO groups (name, teacher_id, course, schedule_time, schedule_days, monthly_fee)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(name, teacher_id || null, course || "", schedule_time || "", schedule_days || "", Number(monthly_fee || 0));
-  res.status(201).json({ id: result.lastInsertRowid });
+  const {
+    name,
+    teacher_id = null,
+    schedule_days = "",
+    start_time = "",
+    end_time = "",
+    monthly_fee = 0,
+    is_active = 1,
+  } = req.body || {};
+  if (!name) {
+    return res.status(400).json({ message: "Guruh nomi majburiy" });
+  }
+  const result = run(
+    `
+      INSERT INTO groups (name, teacher_id, schedule_days, start_time, end_time, monthly_fee, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `,
+    [name, teacher_id || null, schedule_days, start_time, end_time, Number(monthly_fee) || 0, is_active ? 1 : 0],
+  );
+  return res.status(201).json(get("SELECT * FROM groups WHERE id = ?", [result.lastInsertRowid]));
 });
 
 router.put("/:id", roleCheck("owner", "manager"), (req, res) => {
-  const { name, teacher_id, course, schedule_time, schedule_days, monthly_fee } = req.body;
-  db.prepare(`
-    UPDATE groups
-    SET name = ?, teacher_id = ?, course = ?, schedule_time = ?, schedule_days = ?, monthly_fee = ?
-    WHERE id = ?
-  `).run(name, teacher_id || null, course || "", schedule_time || "", schedule_days || "", Number(monthly_fee || 0), req.params.id);
-  res.json({ success: true });
+  const {
+    name,
+    teacher_id = null,
+    schedule_days = "",
+    start_time = "",
+    end_time = "",
+    monthly_fee = 0,
+    is_active = 1,
+  } = req.body || {};
+  run(
+    `
+      UPDATE groups
+      SET name = ?, teacher_id = ?, schedule_days = ?, start_time = ?, end_time = ?, monthly_fee = ?, is_active = ?
+      WHERE id = ?
+    `,
+    [name, teacher_id || null, schedule_days, start_time, end_time, Number(monthly_fee) || 0, is_active ? 1 : 0, req.params.id],
+  );
+  run(
+    `
+      UPDATE payments
+      SET amount = ?
+      WHERE group_id = ? AND month = ? AND paid = 0
+    `,
+    [Number(monthly_fee) || 0, req.params.id, currentMonth()],
+  );
+  return res.json(get("SELECT * FROM groups WHERE id = ?", [req.params.id]));
 });
 
 router.delete("/:id", roleCheck("owner"), (req, res) => {
-  db.prepare("DELETE FROM groups WHERE id = ?").run(req.params.id);
-  res.json({ success: true });
+  run("DELETE FROM groups WHERE id = ?", [req.params.id]);
+  return res.json({ ok: true });
+});
+
+router.get("/:id/students", (_req, res) => {
+  const rows = all(
+    `
+      SELECT
+        s.*,
+        gs.joined_at
+      FROM group_students gs
+      JOIN students s ON s.id = gs.student_id
+      WHERE gs.group_id = ? AND gs.is_active = 1
+      ORDER BY s.full_name
+    `,
+    [_req.params.id],
+  );
+  return res.json(rows);
 });
 
 router.post("/:id/students", roleCheck("owner", "manager"), (req, res) => {
-  const { student_id, full_name, ota_phone, ona_phone, telefon } = req.body;
-  if (student_id) {
-    db.prepare("UPDATE students SET group_id = ? WHERE id = ?").run(req.params.id, student_id);
-  } else {
-    db.prepare(`
-      INSERT INTO students (full_name, ota_phone, ona_phone, telefon, group_id, status)
-      VALUES (?, ?, ?, ?, ?, 'active')
-    `).run(full_name, ota_phone || null, ona_phone || null, telefon || null, req.params.id);
+  const { student_id } = req.body || {};
+  if (!student_id) {
+    return res.status(400).json({ message: "student_id majburiy" });
   }
-  res.json({ success: true });
-});
-
-router.delete("/:groupId/students/:studentId", roleCheck("owner", "manager"), (req, res) => {
-  db.prepare("UPDATE students SET group_id = NULL WHERE id = ? AND group_id = ?").run(req.params.studentId, req.params.groupId);
-  res.json({ success: true });
-});
-
-router.get("/:id/attendance", (req, res) => {
-  const month = req.query.month || new Date().toISOString().slice(0, 7);
-  const records = db.prepare(`
-    SELECT * FROM attendance
-    WHERE group_id = ? AND substr(date, 1, 7) = ?
-  `).all(req.params.id, month);
-  res.json(records);
-});
-
-router.post("/:id/attendance", roleCheck("owner", "manager"), (req, res) => {
-  const { student_id, date, status } = req.body;
-  const existing = db.prepare("SELECT id FROM attendance WHERE student_id = ? AND group_id = ? AND date = ?").get(student_id, req.params.id, date);
+  const existing = get(
+    "SELECT id FROM group_students WHERE group_id = ? AND student_id = ?",
+    [req.params.id, student_id],
+  );
   if (existing) {
-    db.prepare("UPDATE attendance SET status = ? WHERE id = ?").run(status, existing.id);
+    run(
+      "UPDATE group_students SET is_active = 1, left_at = NULL WHERE id = ?",
+      [existing.id],
+    );
   } else {
-    db.prepare("INSERT INTO attendance (student_id, group_id, date, status) VALUES (?, ?, ?, ?)").run(student_id, req.params.id, date, status);
+    run(
+      "INSERT INTO group_students (group_id, student_id, is_active) VALUES (?, ?, 1)",
+      [req.params.id, student_id],
+    );
   }
-  res.json({ success: true });
+  return res.json({ ok: true });
 });
 
 module.exports = router;
