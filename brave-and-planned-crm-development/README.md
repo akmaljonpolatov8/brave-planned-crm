@@ -4,7 +4,7 @@ Brave and Planet ta'lim markazi uchun full-stack CRM. Frontend `React + Vite + T
 
 ## Asosiy imkoniyatlar
 
-- JWT login: `owner/owner123`, `manager1/manager123`, `manager2/manager123`
+- JWT login: `Owner/MrRobben10`, `Elbek/elbek3695`, `Doniyor/doniyor0000`
 - Owner uchun tushum kartasi va umumiy analytics
 - Manager uchun individual qarzdorlik va to'lov nazorati
 - Guruhlar: create/edit/delete, detail sahifa, student roster, attendance calendar
@@ -73,6 +73,6 @@ JWT_SECRET=brave_planet_secret_2024
 - `npm run db:init`
 - `npm run db:seed`
 - `GET /api/health`
-- owner login
+- `Owner` login
 - groups API
 - `npm run build:client`

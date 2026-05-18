@@ -24,9 +24,9 @@ const hash = (value) => bcrypt.hashSync(value, 10);
 
 const seedUsers = transaction(() => {
   const users = [
-    ["owner", "Owner Admin", hash("owner123"), "owner"],
-    ["manager1", "Manager One", hash("manager123"), "manager"],
-    ["manager2", "Manager Two", hash("manager456"), "manager"],
+    ["Owner", "Owner", hash("MrRobben10"), "owner"],
+    ["Elbek", "Elbek", hash("elbek3695"), "manager"],
+    ["Doniyor", "Doniyor", hash("doniyor0000"), "manager"],
   ];
 
   for (const user of users) {
