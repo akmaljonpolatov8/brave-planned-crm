@@ -1,6 +1,9 @@
 {
   "name": "brave-and-planet-workspace",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "npm --prefix brave-and-planned-crm-development run dev",
     "build": "npm --prefix brave-and-planned-crm-development run build",
