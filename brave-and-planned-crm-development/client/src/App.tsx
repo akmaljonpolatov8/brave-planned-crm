@@ -5,6 +5,7 @@ import { AttendancePage } from "./pages/AttendancePage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DebtorsPage } from "./pages/DebtorsPage";
 import { GroupsPage } from "./pages/GroupsPage";
+import { ImportPage } from "./pages/ImportPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { SmsPage } from "./pages/SmsPage";
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/students" element={<StudentsPage />} />
         <Route path="/teachers" element={<TeachersPage />} />
         <Route path="/groups" element={<GroupsPage />} />
+        <Route path="/import" element={<ImportPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/payments" element={<PaymentsPage />} />
         <Route path="/debtors" element={<DebtorsPage />} />

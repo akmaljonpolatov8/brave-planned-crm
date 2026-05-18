@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { canManage } from "../../lib/permissions";
+import { canManage, isOwner } from "../../lib/permissions";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
@@ -11,6 +11,7 @@ export function Sidebar() {
     ["/students", "O'quvchilar"],
     ["/teachers", "O'qituvchilar"],
     ["/groups", "Guruhlar"],
+    ...(isOwner(user) ? [["/import", "Excel import"]] : []),
     ["/attendance", "Davomat"],
     ["/payments", "To'lovlar"],
     ["/debtors", "Qarzdorlar"],
