@@ -54,8 +54,9 @@ brave-and-planned-crm-development/
 ## TextUp sozlamalari
 
 ```env
-TEXTUP_API_KEY=your_key
-TEXTUP_API_URL=https://api.textup.uz/send
+TEXTUP_API_KEY=your_textup_key
+TEXTUP_API_SECRET=your_textup_secret
+TEXTUP_API_URL=https://rest.smsportal.com/bulkmessages
 JWT_SECRET=brave_planet_secret_2024
 ```
 
