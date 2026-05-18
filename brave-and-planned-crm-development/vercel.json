@@ -1,0 +1,17 @@
+{
+  "buildCommand": "prisma generate && next build",
+  "env": {
+    "DATABASE_URL": "@database_url",
+    "DIRECT_URL": "@direct_url",
+    "AUTH_SECRET": "@auth_secret",
+    "ESKIZ_EMAIL": "@eskiz_email",
+    "ESKIZ_PASSWORD": "@eskiz_password",
+    "SMS_FROM": "@sms_from",
+    "NEXT_PUBLIC_API_URL": "@next_public_api_url"
+  },
+  "git": {
+    "deploy": {
+      "command": "npm run db:migrate && npm run db:seed"
+    }
+  }
+}

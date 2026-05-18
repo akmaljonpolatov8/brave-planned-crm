@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary: #ffd662;
+    --primary-dark: #e8c442;
+    --background: #422057;
+    --sidebar: #2d1540;
+    --card-bg: rgba(255, 255, 255, 0.06);
+    --border: rgba(255, 214, 98, 0.15);
+    --text-primary: #ffd662;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-tertiary: rgba(255, 255, 255, 0.5);
+    --success: #4ade80;
+    --success-dark: #22c55e;
+    --danger: #f87171;
+    --danger-dark: #ef4444;
+    --warning: #facc15;
+    --info: #38bdf8;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-[#1a1a2e] text-white antialiased;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary {
+    @apply bg-(--primary) text-[#1a1a2e] hover:bg-(--primary-dark);
+  }
+
+  .btn-secondary {
+    @apply border border-(--border) bg-transparent text-(--text-secondary) hover:bg-(--card-bg);
+  }
+
+  .btn-danger {
+    @apply bg-(--danger) text-white hover:bg-(--danger-dark);
+  }
+
+  .btn-sm {
+    @apply px-3 py-1 text-sm;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-(--border) bg-(--card-bg) px-3 py-2 text-white placeholder-(--text-tertiary) transition-colors focus-visible:border-(--primary) focus-visible:outline-none;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2 py-1 text-xs font-medium;
+  }
+
+  .badge-success {
+    @apply bg-(--success)/20 text-(--success);
+  }
+
+  .badge-danger {
+    @apply bg-(--danger)/20 text-(--danger);
+  }
+
+  .badge-warning {
+    @apply bg-(--warning)/20 text-(--warning);
+  }
+
+  .badge-info {
+    @apply bg-(--info)/20 text-(--info);
+  }
+
+  .card {
+    @apply rounded-lg border border-(--border) bg-(--card-bg) p-4 backdrop-blur-sm;
+  }
+
+  .table {
+    @apply w-full border-collapse;
+  }
+
+  .table th {
+    @apply border-b border-(--border) bg-(--card-bg) px-4 py-3 text-left font-semibold text-(--text-primary);
+  }
+
+  .table td {
+    @apply border-b border-(--border)/50 px-4 py-3 text-(--text-secondary);
+  }
+
+  .table tbody tr:hover {
+    @apply bg-(--card-bg);
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 2s linear infinite;
+}

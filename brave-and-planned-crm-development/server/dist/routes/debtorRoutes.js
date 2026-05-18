@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const debtorsController_1 = require("../controllers/debtorsController");
+const roleCheck_1 = require("../middleware/roleCheck");
+const router = (0, express_1.Router)();
+router.get("/", debtorsController_1.listDebtors);
+router.get("/sms-logs", debtorsController_1.listSmsLogs);
+router.post("/send-all", (0, roleCheck_1.roleCheck)("OWNER", "MANAGER"), debtorsController_1.sendAllDebtorSms);
+router.post("/:paymentId/send-sms", (0, roleCheck_1.roleCheck)("OWNER", "MANAGER"), debtorsController_1.sendDebtorSms);
+exports.default = router;

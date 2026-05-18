@@ -1,0 +1,13 @@
+{
+  "name": "brave-and-planet-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix brave-and-planned-crm-development run dev",
+    "build": "npm --prefix brave-and-planned-crm-development run build",
+    "build:client": "npm --prefix brave-and-planned-crm-development run build:client",
+    "start": "npm --prefix brave-and-planned-crm-development run start",
+    "db:init": "npm --prefix brave-and-planned-crm-development run db:init",
+    "db:seed": "npm --prefix brave-and-planned-crm-development run db:seed",
+    "import:excel": "npm --prefix brave-and-planned-crm-development run import:excel"
+  }
+}

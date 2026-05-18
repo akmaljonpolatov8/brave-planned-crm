@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const groupsController_1 = require("../controllers/groupsController");
+const roleCheck_1 = require("../middleware/roleCheck");
+const router = (0, express_1.Router)();
+router.get("/", groupsController_1.listGroups);
+router.get("/:id/roster", groupsController_1.getRoster);
+router.post("/", (0, roleCheck_1.roleCheck)("OWNER", "MANAGER"), groupsController_1.createGroup);
+router.put("/:id", (0, roleCheck_1.roleCheck)("OWNER", "MANAGER"), groupsController_1.updateGroup);
+router.delete("/:id", (0, roleCheck_1.roleCheck)("OWNER"), groupsController_1.deleteGroup);
+exports.default = router;

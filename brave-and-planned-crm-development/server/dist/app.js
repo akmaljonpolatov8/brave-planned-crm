@@ -1,0 +1,46 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const cors_1 = __importDefault(require("cors"));
+const express_1 = __importDefault(require("express"));
+const path_1 = __importDefault(require("path"));
+const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
+const attendanceRoutes_1 = __importDefault(require("./routes/attendanceRoutes"));
+const dashboardRoutes_1 = __importDefault(require("./routes/dashboardRoutes"));
+const debtorRoutes_1 = __importDefault(require("./routes/debtorRoutes"));
+const groupRoutes_1 = __importDefault(require("./routes/groupRoutes"));
+const paymentRoutes_1 = __importDefault(require("./routes/paymentRoutes"));
+const reportRoutes_1 = __importDefault(require("./routes/reportRoutes"));
+const searchRoutes_1 = __importDefault(require("./routes/searchRoutes"));
+const smsRoutes_1 = __importDefault(require("./routes/smsRoutes"));
+const studentRoutes_1 = __importDefault(require("./routes/studentRoutes"));
+const teacherRoutes_1 = __importDefault(require("./routes/teacherRoutes"));
+const env_1 = require("./config/env");
+const auth_1 = require("./middleware/auth");
+const errorHandler_1 = require("./middleware/errorHandler");
+const app = (0, express_1.default)();
+app.use((0, cors_1.default)({ origin: env_1.env.clientUrl, credentials: true }));
+app.use(express_1.default.json());
+app.get("/api/health", (_req, res) => res.json({ ok: true }));
+app.use("/api/auth", authRoutes_1.default);
+app.use("/api/dashboard", auth_1.authMiddleware, dashboardRoutes_1.default);
+app.use("/api/students", auth_1.authMiddleware, studentRoutes_1.default);
+app.use("/api/teachers", auth_1.authMiddleware, teacherRoutes_1.default);
+app.use("/api/groups", auth_1.authMiddleware, groupRoutes_1.default);
+app.use("/api/attendance", auth_1.authMiddleware, attendanceRoutes_1.default);
+app.use("/api/payments", auth_1.authMiddleware, paymentRoutes_1.default);
+app.use("/api/debtors", auth_1.authMiddleware, debtorRoutes_1.default);
+app.use("/api/reports", auth_1.authMiddleware, reportRoutes_1.default);
+app.use("/api/search", auth_1.authMiddleware, searchRoutes_1.default);
+app.use("/api/sms", auth_1.authMiddleware, smsRoutes_1.default);
+const clientDist = path_1.default.resolve(process.cwd(), "client", "dist");
+app.use(express_1.default.static(clientDist));
+app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api"))
+        return next();
+    return res.sendFile(path_1.default.join(clientDist, "index.html"));
+});
+app.use(errorHandler_1.errorHandler);
+exports.default = app;

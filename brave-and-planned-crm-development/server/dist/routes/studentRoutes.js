@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const studentsController_1 = require("../controllers/studentsController");
+const roleCheck_1 = require("../middleware/roleCheck");
+const router = (0, express_1.Router)();
+router.get("/", studentsController_1.listStudents);
+router.post("/", (0, roleCheck_1.roleCheck)("OWNER", "MANAGER"), studentsController_1.createStudent);
+router.put("/:id", (0, roleCheck_1.roleCheck)("OWNER", "MANAGER"), studentsController_1.updateStudent);
+router.delete("/:id", (0, roleCheck_1.roleCheck)("OWNER"), studentsController_1.deleteStudent);
+router.get("/:id/history", studentsController_1.studentPaymentHistory);
+router.post("/:id/transfer", (0, roleCheck_1.roleCheck)("OWNER", "MANAGER"), studentsController_1.transferStudent);
+exports.default = router;

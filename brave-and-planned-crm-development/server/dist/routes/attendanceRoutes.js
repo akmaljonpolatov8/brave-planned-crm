@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const attendanceController_1 = require("../controllers/attendanceController");
+const roleCheck_1 = require("../middleware/roleCheck");
+const router = (0, express_1.Router)();
+router.get("/", attendanceController_1.getAttendance);
+router.post("/", (0, roleCheck_1.roleCheck)("OWNER", "MANAGER"), attendanceController_1.saveAttendance);
+router.get("/weekly", attendanceController_1.weeklyAttendanceReport);
+exports.default = router;
