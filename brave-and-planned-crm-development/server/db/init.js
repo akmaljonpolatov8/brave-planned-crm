@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { db } = require("./database");
+const { seedDatabase } = require("./seed");
 
 const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
 db.exec(schema);
@@ -22,5 +23,10 @@ db.exec(`
   )
   WHERE group_id IS NULL
 `);
+
+const userCountRow = db.prepare("SELECT COUNT(*) AS count FROM users").get();
+if ((userCountRow?.count || 0) === 0) {
+  seedDatabase();
+}
 
 console.log("Database initialized");

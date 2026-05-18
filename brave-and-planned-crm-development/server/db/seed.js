@@ -8,18 +8,6 @@ const previousMonthKey = (date = new Date()) => {
   return next.toISOString().slice(0, 7);
 };
 
-db.exec(`
-DELETE FROM sms_logs;
-DELETE FROM transfers;
-DELETE FROM attendance;
-DELETE FROM payments;
-DELETE FROM group_students;
-DELETE FROM students;
-DELETE FROM groups;
-DELETE FROM teachers;
-DELETE FROM users;
-`);
-
 const hash = (value) => bcrypt.hashSync(value, 10);
 
 const seedUsers = transaction(() => {
@@ -126,6 +114,26 @@ const seedUsers = transaction(() => {
   );
 });
 
-seedUsers();
+function seedDatabase() {
+  db.exec(`
+  DELETE FROM sms_logs;
+  DELETE FROM transfers;
+  DELETE FROM attendance;
+  DELETE FROM payments;
+  DELETE FROM group_students;
+  DELETE FROM students;
+  DELETE FROM groups;
+  DELETE FROM teachers;
+  DELETE FROM users;
+  `);
+  seedUsers();
+  console.log("Database seeded");
+}
 
-console.log("Database seeded");
+if (require.main === module) {
+  seedDatabase();
+}
+
+module.exports = {
+  seedDatabase,
+};

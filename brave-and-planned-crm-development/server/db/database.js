@@ -2,8 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
 
-const dbDir = __dirname;
-const dbPath = path.join(dbDir, "brave_planet.sqlite");
+const dbPath = process.env.DATABASE_PATH
+  ? path.resolve(process.env.DATABASE_PATH)
+  : path.join(process.cwd(), "data", "brave_planet.sqlite");
+const dbDir = path.dirname(dbPath);
 
 fs.mkdirSync(dbDir, { recursive: true });
 
