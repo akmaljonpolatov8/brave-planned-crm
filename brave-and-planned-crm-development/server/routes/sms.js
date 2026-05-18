@@ -1,102 +1,77 @@
-const express = require("express");
-const { db } = require("../db/database");
-const roleCheck = require("../middleware/roleCheck");
-const { sendSMS, getParentPhone } = require("../services/smsService");
+import express from 'express';
+import { getDatabase } from '../db/database.js';
+import { roleCheck } from '../middleware/roleCheck.js';
+import { sendSMS } from '../services/smsService.js';
 
 const router = express.Router();
 
-async function sendAndLog(studentId, phone, message) {
-  const result = await sendSMS(phone, message);
-  const status = result?.success === false ? "failed" : "sent";
+router.get('/', (req, res) => {
+  const { month, status } = req.query;
+  const db = getDatabase();
 
-  db.prepare(
-    "INSERT INTO sms_logs (student_id, phone, message, status) VALUES (?, ?, ?, ?)",
-  ).run(studentId ?? null, phone, message, status);
+  let query = 'SELECT * FROM sms_logs WHERE 1=1';
+  const params = [];
 
-  return { ...result, status };
-}
-
-router.post("/send", roleCheck("owner", "manager"), async (req, res) => {
-  const { phone, phones, groupId, message } = req.body;
-  if (!message || !String(message).trim()) {
-    return res.status(400).json({ message: "Xabar matni bo'sh" });
+  if (month) {
+    query += ' AND month = ?';
+    params.push(month);
+  }
+  if (status) {
+    query += ' AND status = ?';
+    params.push(status);
   }
 
-  const recipients = [];
-
-  if (Array.isArray(phones)) {
-    phones.forEach((item) => item && recipients.push(String(item)));
-  } else if (phone) {
-    recipients.push(String(phone));
-  } else if (groupId) {
-    const students = db
-      .prepare("SELECT * FROM students WHERE group_id = ? ORDER BY full_name")
-      .all(groupId);
-    students.forEach((student) => {
-      const parentPhone = getParentPhone(student);
-      if (parentPhone) recipients.push(parentPhone);
-    });
-  } else {
-    const students = db
-      .prepare("SELECT * FROM students ORDER BY full_name")
-      .all();
-    students.forEach((student) => {
-      const parentPhone = getParentPhone(student);
-      if (parentPhone) recipients.push(parentPhone);
-    });
-  }
-
-  const uniqueRecipients = [...new Set(recipients)];
-  let sent = 0;
-
-  for (const recipient of uniqueRecipients) {
-    await sendAndLog(null, recipient, String(message));
-    sent += 1;
-  }
-
-  return res.json({ success: true, count: sent });
-});
-
-router.post(
-  "/send-to-debtors",
-  roleCheck("owner", "manager"),
-  async (req, res) => {
-    const month = req.body.month || new Date().toISOString().slice(0, 7);
-    const debtors = db
-      .prepare(
-        `SELECT p.id AS payment_id, p.amount, p.month, s.*
-     FROM payments p
-     JOIN students s ON s.id = p.student_id
-     WHERE p.month = ? AND p.paid = 0
-     ORDER BY s.full_name`,
-      )
-      .all(month);
-
-    let sent = 0;
-    for (const debtor of debtors) {
-      const phone = getParentPhone(debtor);
-      if (!phone) continue;
-      const message = `Hurmatli ota-ona, ${debtor.full_name}ning ${month} oyi uchun to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.`;
-      await sendAndLog(debtor.id, phone, message);
-      sent += 1;
-    }
-
-    return res.json({ success: true, count: sent });
-  },
-);
-
-router.get("/logs", (req, res) => {
-  const logs = db
-    .prepare(
-      `SELECT l.*, s.full_name AS student_name
-     FROM sms_logs l
-     LEFT JOIN students s ON s.id = l.student_id
-     ORDER BY l.sent_at DESC
-     LIMIT 100`,
-    )
-    .all();
-
+  query += ' ORDER BY sent_at DESC';
+  const logs = db.prepare(query).all(...params);
   res.json(logs);
 });
 
-module.exports = router;
+router.post('/send-debtors', roleCheck('owner', 'manager'), async (req, res) => {
+  const { month, student_ids } = req.body;
+  const db = getDatabase();
+
+  const queryMonth = month || new Date().toISOString().substring(0, 7);
+
+  let debtors;
+  if (student_ids && student_ids.length > 0) {
+    const placeholders = student_ids.map(() => '?').join(',');
+    debtors = db.prepare(`
+      SELECT DISTINCT s.id, s.full_name, s.parent_phone, s.parent_name, g.name as group_name, p.amount
+      FROM payments p
+      JOIN students s ON p.student_id = s.id
+      JOIN groups g ON p.group_id = g.id
+      WHERE p.paid = 0 AND p.month = ? AND p.student_id IN (${placeholders})
+    `).all(queryMonth, ...student_ids);
+  } else {
+    debtors = db.prepare(`
+      SELECT DISTINCT s.id, s.full_name, s.parent_phone, s.parent_name, g.name as group_name, p.amount
+      FROM payments p
+      JOIN students s ON p.student_id = s.id
+      JOIN groups g ON p.group_id = g.id
+      WHERE p.paid = 0 AND p.month = ?
+    `).all(queryMonth);
+  }
+
+  const results = [];
+  for (const debtor of debtors) {
+    const message = `Hurmatli ${debtor.parent_name}, ${debtor.full_name}ning ${queryMonth} oyi uchun ${debtor.amount.toLocaleString()} so'm to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet ta'lim markazi.`;
+    
+    try {
+      await sendSMS(debtor.parent_phone, message);
+      
+      db.prepare('INSERT INTO sms_logs (student_id, phone, message, month, status) VALUES (?, ?, ?, ?, ?)')
+        .run(debtor.id, debtor.parent_phone, message, queryMonth, 'sent');
+      
+      results.push({ student_id: debtor.id, status: 'sent' });
+    } catch (err) {
+      db.prepare('INSERT INTO sms_logs (student_id, phone, message, month, status) VALUES (?, ?, ?, ?, ?)')
+        .run(debtor.id, debtor.parent_phone, message, queryMonth, 'failed');
+      
+      results.push({ student_id: debtor.id, status: 'failed', error: err.message });
+    }
+  }
+
+  res.json({ message: 'SMS sending completed', results });
+});
+
+export default router;

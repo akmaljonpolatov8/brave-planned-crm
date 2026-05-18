@@ -1,98 +1,114 @@
-const express = require("express");
-const { db } = require("../db/database");
-const roleCheck = require("../middleware/roleCheck");
+import express from 'express';
+import { getDatabase } from '../db/database.js';
+import { roleCheck } from '../middleware/roleCheck.js';
 
 const router = express.Router();
 
-router.get("/", (_req, res) => {
+router.get('/', (req, res) => {
+  const db = getDatabase();
   const groups = db.prepare(`
-    SELECT g.*, t.name AS teacher_name, COUNT(s.id) AS student_count
+    SELECT 
+      g.*,
+      COUNT(gs.id) as student_count
     FROM groups g
-    LEFT JOIN teachers t ON t.id = g.teacher_id
-    LEFT JOIN students s ON s.group_id = g.id
+    LEFT JOIN group_students gs ON g.id = gs.group_id AND gs.is_active = 1
+    WHERE g.is_active = 1
     GROUP BY g.id
     ORDER BY g.name
   `).all();
   res.json(groups);
 });
 
-router.get("/:id", (req, res) => {
-  const group = db.prepare(`
-    SELECT g.*, t.name AS teacher_name
-    FROM groups g
-    LEFT JOIN teachers t ON t.id = g.teacher_id
-    WHERE g.id = ?
-  `).get(req.params.id);
+router.get('/:id', (req, res) => {
+  const db = getDatabase();
+  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(req.params.id);
+  
+  if (!group) {
+    return res.status(404).json({ message: 'Group not found' });
+  }
+  res.json(group);
+});
+
+router.get('/:id/students', (req, res) => {
+  const db = getDatabase();
   const students = db.prepare(`
-    SELECT s.*, p.amount, p.paid, p.month
-    FROM students s
-    LEFT JOIN payments p ON p.student_id = s.id AND p.month = ?
-    WHERE s.group_id = ?
+    SELECT s.* FROM students s
+    JOIN group_students gs ON s.id = gs.student_id
+    WHERE gs.group_id = ? AND gs.is_active = 1
     ORDER BY s.full_name
-  `).all(new Date().toISOString().slice(0, 7), req.params.id);
-  res.json({ ...group, students });
+  `).all(req.params.id);
+  res.json(students);
 });
 
-router.post("/", roleCheck("owner", "manager"), (req, res) => {
-  const { name, teacher_id, course, schedule_time, schedule_days, monthly_fee } = req.body;
+router.post('/', roleCheck('owner', 'manager'), (req, res) => {
+  const { name, teacher_id, schedule_days, start_time, end_time, monthly_fee } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ message: 'Group name required' });
+  }
+
+  const db = getDatabase();
   const result = db.prepare(`
-    INSERT INTO groups (name, teacher_id, course, schedule_time, schedule_days, monthly_fee)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(name, teacher_id || null, course || "", schedule_time || "", schedule_days || "", Number(monthly_fee || 0));
-  res.status(201).json({ id: result.lastInsertRowid });
+    INSERT INTO groups (name, teacher_id, schedule_days, start_time, end_time, monthly_fee, is_active)
+    VALUES (?, ?, ?, ?, ?, ?, 1)
+  `).run(name, teacher_id || null, schedule_days || null, start_time || null, end_time || null, monthly_fee || 0);
+
+  res.status(201).json({ id: result.lastInsertRowid, name, teacher_id, schedule_days, start_time, end_time, monthly_fee });
 });
 
-router.put("/:id", roleCheck("owner", "manager"), (req, res) => {
-  const { name, teacher_id, course, schedule_time, schedule_days, monthly_fee } = req.body;
+router.put('/:id', roleCheck('owner', 'manager'), (req, res) => {
+  const { name, teacher_id, schedule_days, start_time, end_time, monthly_fee } = req.body;
+  const db = getDatabase();
+
+  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(req.params.id);
+  if (!group) {
+    return res.status(404).json({ message: 'Group not found' });
+  }
+
   db.prepare(`
-    UPDATE groups
-    SET name = ?, teacher_id = ?, course = ?, schedule_time = ?, schedule_days = ?, monthly_fee = ?
+    UPDATE groups 
+    SET name = ?, teacher_id = ?, schedule_days = ?, start_time = ?, end_time = ?, monthly_fee = ?
     WHERE id = ?
-  `).run(name, teacher_id || null, course || "", schedule_time || "", schedule_days || "", Number(monthly_fee || 0), req.params.id);
-  res.json({ success: true });
+  `).run(
+    name || group.name,
+    teacher_id !== undefined ? teacher_id : group.teacher_id,
+    schedule_days !== undefined ? schedule_days : group.schedule_days,
+    start_time !== undefined ? start_time : group.start_time,
+    end_time !== undefined ? end_time : group.end_time,
+    monthly_fee !== undefined ? monthly_fee : group.monthly_fee,
+    req.params.id
+  );
+
+  res.json({ id: req.params.id, name, teacher_id, schedule_days, start_time, end_time, monthly_fee });
 });
 
-router.delete("/:id", roleCheck("owner"), (req, res) => {
-  db.prepare("DELETE FROM groups WHERE id = ?").run(req.params.id);
-  res.json({ success: true });
+router.delete('/:id', roleCheck('owner'), (req, res) => {
+  const db = getDatabase();
+  db.prepare('UPDATE groups SET is_active = 0 WHERE id = ?').run(req.params.id);
+  res.json({ message: 'Group deleted' });
 });
 
-router.post("/:id/students", roleCheck("owner", "manager"), (req, res) => {
-  const { student_id, full_name, ota_phone, ona_phone, telefon } = req.body;
-  if (student_id) {
-    db.prepare("UPDATE students SET group_id = ? WHERE id = ?").run(req.params.id, student_id);
-  } else {
-    db.prepare(`
-      INSERT INTO students (full_name, ota_phone, ona_phone, telefon, group_id, status)
-      VALUES (?, ?, ?, ?, ?, 'active')
-    `).run(full_name, ota_phone || null, ona_phone || null, telefon || null, req.params.id);
+router.post('/:id/students', roleCheck('owner', 'manager'), (req, res) => {
+  const { student_id } = req.body;
+  const groupId = req.params.id;
+  const db = getDatabase();
+
+  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId);
+  if (!group) {
+    return res.status(404).json({ message: 'Group not found' });
   }
-  res.json({ success: true });
-});
 
-router.delete("/:groupId/students/:studentId", roleCheck("owner", "manager"), (req, res) => {
-  db.prepare("UPDATE students SET group_id = NULL WHERE id = ? AND group_id = ?").run(req.params.studentId, req.params.groupId);
-  res.json({ success: true });
-});
-
-router.get("/:id/attendance", (req, res) => {
-  const month = req.query.month || new Date().toISOString().slice(0, 7);
-  const records = db.prepare(`
-    SELECT * FROM attendance
-    WHERE group_id = ? AND substr(date, 1, 7) = ?
-  `).all(req.params.id, month);
-  res.json(records);
-});
-
-router.post("/:id/attendance", roleCheck("owner", "manager"), (req, res) => {
-  const { student_id, date, status } = req.body;
-  const existing = db.prepare("SELECT id FROM attendance WHERE student_id = ? AND group_id = ? AND date = ?").get(student_id, req.params.id, date);
-  if (existing) {
-    db.prepare("UPDATE attendance SET status = ? WHERE id = ?").run(status, existing.id);
-  } else {
-    db.prepare("INSERT INTO attendance (student_id, group_id, date, status) VALUES (?, ?, ?, ?)").run(student_id, req.params.id, date, status);
+  const student = db.prepare('SELECT * FROM students WHERE id = ?').get(student_id);
+  if (!student) {
+    return res.status(404).json({ message: 'Student not found' });
   }
-  res.json({ success: true });
+
+  try {
+    const result = db.prepare('INSERT INTO group_students (group_id, student_id, is_active) VALUES (?, ?, 1)').run(groupId, student_id);
+    res.status(201).json({ id: result.lastInsertRowid, group_id: groupId, student_id });
+  } catch (err) {
+    return res.status(400).json({ message: 'Student already in group' });
+  }
 });
 
-module.exports = router;
+export default router;

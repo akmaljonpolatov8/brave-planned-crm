@@ -1,64 +1,28 @@
-const express = require("express");
-const { db } = require("../db/database");
-const { sendSMS, getParentPhone } = require("../services/smsService");
-const { buildMonthlyMessage } = require("../services/scheduler");
-const roleCheck = require("../middleware/roleCheck");
+import express from 'express';
+import { getDatabase } from '../db/database.js';
+import { roleCheck } from '../middleware/roleCheck.js';
 
 const router = express.Router();
 
-function getDebtors(month) {
-  return db.prepare(`
-    SELECT p.id AS payment_id, p.amount, p.month, s.*, g.name AS group_name,
-           CAST(julianday('now') - julianday(p.month || '-02') AS INTEGER) AS days_overdue
+router.get('/', (req, res) => {
+  const { month } = req.query;
+  const db = getDatabase();
+
+  const queryMonth = month || new Date().toISOString().substring(0, 7);
+
+  const debtors = db.prepare(`
+    SELECT DISTINCT
+      s.id, s.full_name, s.phone, s.parent_phone, s.parent_name,
+      g.name as group_name,
+      p.amount, p.month
     FROM payments p
-    JOIN students s ON s.id = p.student_id
-    LEFT JOIN groups g ON g.id = p.group_id
-    WHERE p.month = ? AND p.paid = 0
-    ORDER BY g.name, s.full_name
-  `).all(month).map((row) => ({
-    ...row,
-    parent_phone: getParentPhone(row),
-  }));
-}
+    JOIN students s ON p.student_id = s.id
+    JOIN groups g ON p.group_id = g.id
+    WHERE p.paid = 0 AND p.month = ?
+    ORDER BY s.full_name
+  `).all(queryMonth);
 
-router.get("/", (req, res) => {
-  const month = req.query.month || new Date().toISOString().slice(0, 7);
-  res.json(getDebtors(month));
+  res.json(debtors);
 });
 
-router.post("/:paymentId/send", roleCheck("owner", "manager"), async (req, res) => {
-  const row = db.prepare(`
-    SELECT p.id AS payment_id, p.amount, p.month, s.*
-    FROM payments p
-    JOIN students s ON s.id = p.student_id
-    WHERE p.id = ?
-  `).get(req.params.paymentId);
-  const phone = getParentPhone(row);
-  const message = buildMonthlyMessage(row.full_name, row.month);
-  let status = "sent";
-  try {
-    await sendSMS(phone, message);
-  } catch (error) {
-    status = "failed";
-  }
-  db.prepare("INSERT INTO sms_logs (student_id, phone, message, status) VALUES (?, ?, ?, ?)").run(row.id, phone, message, status);
-  res.json({ success: true, status, sent_at: new Date().toISOString() });
-});
-
-router.post("/send-all", roleCheck("owner", "manager"), async (req, res) => {
-  const month = req.body.month || new Date().toISOString().slice(0, 7);
-  const debtors = getDebtors(month);
-  for (const row of debtors) {
-    const message = buildMonthlyMessage(row.full_name, row.month);
-    let status = "sent";
-    try {
-      await sendSMS(row.parent_phone, message);
-    } catch (error) {
-      status = "failed";
-    }
-    db.prepare("INSERT INTO sms_logs (student_id, phone, message, status) VALUES (?, ?, ?, ?)").run(row.id, row.parent_phone, message, status);
-  }
-  res.json({ success: true, count: debtors.length });
-});
-
-module.exports = router;
+export default router;
