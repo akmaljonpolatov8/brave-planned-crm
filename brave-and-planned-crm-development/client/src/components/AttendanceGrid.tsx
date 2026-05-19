@@ -43,6 +43,20 @@ export function AttendanceGrid({
                     <button
                       className={`h-8 w-8 rounded-lg ${color}`}
                       onClick={() => onToggle(student.id, date, status)}
+                      aria-label={`Davomat: ${student.full_name}, sana: ${date}, holat: ${
+                        status === "present"
+                          ? "Kelgan"
+                          : status === "absent"
+                            ? "Kelmagan"
+                            : "Belgilanmagan"
+                      }`}
+                      title={`Davomat: ${student.full_name}, sana: ${date}, holat: ${
+                        status === "present"
+                          ? "Kelgan"
+                          : status === "absent"
+                            ? "Kelmagan"
+                            : "Belgilanmagan"
+                      }`}
                     />
                   </td>
                 );
