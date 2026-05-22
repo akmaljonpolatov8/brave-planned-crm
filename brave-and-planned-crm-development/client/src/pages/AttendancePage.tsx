@@ -152,6 +152,7 @@ export function AttendancePage() {
                         attendance[String(student.id)]?.[dateValue] || null;
                       const isPresent = status === "present";
                       const isAbsent = status === "absent";
+                      const statusLabel = isPresent ? "bor" : isAbsent ? "yo'q" : "belgilanmagan";
 
                       return (
                         <td
@@ -162,6 +163,7 @@ export function AttendancePage() {
                             type="button"
                             className={`mx-auto grid h-9 w-9 place-items-center rounded-full border text-sm transition ${isPresent ? "border-[#46CFB0] bg-[#46CFB0]/20 text-[#46CFB0]" : isAbsent ? "border-[#ff6b6b] bg-[#ff6b6b]/20 text-[#ff6b6b]" : "border-white/10 bg-white/5 text-white/35 hover:border-[#46CFB0]/40 hover:text-[#46CFB0]"}`}
                             onClick={() => toggleCell(student.id, dateValue)}
+                            aria-label={`${student.full_name}, ${Number(dateValue.slice(-2))}-kuni: ${statusLabel}`}
                           >
                             {isPresent ? "✓" : isAbsent ? "✕" : "•"}
                           </button>
