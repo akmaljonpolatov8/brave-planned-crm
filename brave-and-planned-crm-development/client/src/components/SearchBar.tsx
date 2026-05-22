@@ -13,6 +13,7 @@ export function SearchBar({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
+      aria-label={placeholder}
     />
   );
 }
