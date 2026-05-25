@@ -47,25 +47,51 @@ export function SmsPage() {
       }
     >
       <div className="panel space-y-4 p-6">
-        <select
-          className="input"
-          value={groupId}
-          onChange={(e) => setGroupId(e.target.value)}
-        >
-          <option value="">Barcha guruhlar</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
+        <div className="space-y-2">
+          <label
+            htmlFor="group-select"
+            className="text-sm font-medium text-white/70"
+          >
+            Guruhni tanlang
+          </label>
+          <select
+            id="group-select"
+            className="input"
+            value={groupId}
+            onChange={(e) => setGroupId(e.target.value)}
+          >
+            <option value="">Barcha guruhlar</option>
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <textarea
-          className="input min-h-52"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Xabar matni"
-        />
+        <div className="space-y-2">
+          <label
+            htmlFor="message-input"
+            className="text-sm font-medium text-white/70"
+          >
+            Xabar matni
+          </label>
+          <textarea
+            id="message-input"
+            className="input min-h-52"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Xabar matni"
+            aria-describedby="char-counter"
+          />
+          <div
+            id="char-counter"
+            className="text-right text-xs text-white/50"
+            aria-live="polite"
+          >
+            Belgilar soni: {message.length}
+          </div>
+        </div>
 
         <div className="flex flex-wrap gap-3 text-sm text-white/55">
           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
