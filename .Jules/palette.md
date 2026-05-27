@@ -1,0 +1,3 @@
+## 2025-05-14 - Accessible Modal Pattern
+**Learning:** A basic modal component often lacks keyboard navigation (Escape key) and backdrop click interactions, which are expected UX patterns. Screen readers also need explicit roles and labels to identify the modal's context. Using `useId` for `aria-labelledby` ensures unique and robust title association.
+**Action:** Always include `role="dialog"`, `aria-modal="true"`, an `Escape` key listener, and a backdrop click handler when creating or auditing modal components. Use `e.stopPropagation()` on the content container to prevent accidental closures.
