@@ -60,12 +60,23 @@ export function SmsPage() {
           ))}
         </select>
 
-        <textarea
-          className="input min-h-52"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Xabar matni"
-        />
+        <div className="relative">
+          <textarea
+            id="sms-message"
+            className="input min-h-52"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Xabar matni"
+            aria-describedby="char-counter"
+          />
+          <div
+            id="char-counter"
+            className="absolute bottom-3 right-4 text-xs text-white/40"
+            aria-live="polite"
+          >
+            {message.length} ta belgi
+          </div>
+        </div>
 
         <div className="flex flex-wrap gap-3 text-sm text-white/55">
           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
