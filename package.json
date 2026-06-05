@@ -2,10 +2,10 @@
   "name": "brave-and-planet-workspace",
   "private": true,
   "scripts": {
-    "postinstall": "npm --prefix brave-and-planned-crm-development install",
+    "postinstall": "cd brave-and-planned-crm-development && npm install",
     "dev": "npm --prefix brave-and-planned-crm-development run dev",
-    "build": "npm --prefix brave-and-planned-crm-development run build",
-    "build:client": "npm --prefix brave-and-planned-crm-development run build:client",
+    "build": "cd brave-and-planned-crm-development && npx vite build --config vite.config.ts",
+    "build:client": "cd brave-and-planned-crm-development && npx vite build --config vite.config.ts",
     "start": "npm --prefix brave-and-planned-crm-development run start",
     "db:init": "npm --prefix brave-and-planned-crm-development run db:init",
     "db:seed": "npm --prefix brave-and-planned-crm-development run db:seed",
