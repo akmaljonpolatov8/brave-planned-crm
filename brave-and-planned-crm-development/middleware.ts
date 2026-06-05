@@ -1,11 +1,4 @@
-import { auth } from "@/auth";
-
-export const middleware = auth((req) => {
-  return undefined;
-});
-
+export { auth as default } from "@/auth";
 export const config = {
-  matcher: [
-    "/((?!login|api/setup|api/health|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!api/auth|api/health|api/setup|_next|login).*)"],
 };

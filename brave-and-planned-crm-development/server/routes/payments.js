@@ -1,57 +1,78 @@
-const express = require("express");
-const { db } = require("../db/database");
-const roleCheck = require("../middleware/roleCheck");
+import express from 'express';
+import { getDatabase } from '../db/database.js';
+import { roleCheck } from '../middleware/roleCheck.js';
 
 const router = express.Router();
 
-router.get("/", (req, res) => {
-  const month = req.query.month || new Date().toISOString().slice(0, 7);
-  const groupId = req.query.group_id || null;
-  const rows = db
-    .prepare(
-      `
-    SELECT p.*, s.full_name, g.name AS group_name
+router.get('/', (req, res) => {
+  const { group_id, month } = req.query;
+  const db = getDatabase();
+
+  let query = `
+    SELECT p.*, s.full_name, g.name as group_name
     FROM payments p
-    JOIN students s ON s.id = p.student_id
-    LEFT JOIN groups g ON g.id = p.group_id
-    WHERE p.month = ? AND (? IS NULL OR p.group_id = ?)
-    ORDER BY s.full_name
-  `,
-    )
-    .all(month, groupId, groupId);
+    JOIN students s ON p.student_id = s.id
+    JOIN groups g ON p.group_id = g.id
+    WHERE 1=1
+  `;
+  const params = [];
 
-  const summary =
-    req.user.role === "owner"
-      ? db
-          .prepare(
-            `
-          SELECT COALESCE(SUM(amount), 0) AS total_revenue,
-                 COUNT(CASE WHEN paid = 1 THEN 1 END) AS paid_count,
-                 COUNT(CASE WHEN paid = 0 THEN 1 END) AS unpaid_count
-          FROM payments
-          WHERE month = ? AND (? IS NULL OR group_id = ?)
-        `,
-          )
-          .get(month, groupId, groupId)
-      : null;
+  if (group_id) {
+    query += ' AND p.group_id = ?';
+    params.push(group_id);
+  }
+  if (month) {
+    query += ' AND p.month = ?';
+    params.push(month);
+  }
 
-  res.json({ rows, summary });
+  query += ' ORDER BY p.month DESC, s.full_name';
+  const payments = db.prepare(query).all(...params);
+  res.json(payments);
 });
 
-router.patch("/:id/pay", roleCheck("owner", "manager"), (req, res) => {
-  db.prepare(
-    "UPDATE payments SET paid = 1, paid_at = datetime('now') WHERE id = ?",
-  ).run(req.params.id);
-  res.json({ success: true });
+router.post('/generate', roleCheck('owner'), (req, res) => {
+  const db = getDatabase();
+  const now = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  // Get all active group students
+  const groupStudents = db.prepare(`
+    SELECT DISTINCT gs.student_id, gs.group_id, g.monthly_fee
+    FROM group_students gs
+    JOIN groups g ON gs.group_id = g.id
+    WHERE gs.is_active = 1 AND g.is_active = 1
+  `).all();
+
+  let created = 0;
+  for (const { student_id, group_id, monthly_fee } of groupStudents) {
+    try {
+      db.prepare(`
+        INSERT INTO payments (student_id, group_id, month, amount, paid)
+        VALUES (?, ?, ?, ?, 0)
+      `).run(student_id, group_id, month, monthly_fee);
+      created++;
+    } catch (err) {
+      // Already exists, skip
+    }
+  }
+
+  res.json({ message: 'Payments generated', created, month });
 });
 
-router.put("/:id", roleCheck("owner", "manager"), (req, res) => {
-  const { amount } = req.body;
-  db.prepare("UPDATE payments SET amount = ? WHERE id = ?").run(
-    Number(amount),
-    req.params.id,
-  );
-  res.json({ success: true });
+router.put('/:id', roleCheck('owner', 'manager'), (req, res) => {
+  const { paid, note } = req.body;
+  const db = getDatabase();
+
+  const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(req.params.id);
+  if (!payment) {
+    return res.status(404).json({ message: 'Payment not found' });
+  }
+
+  const paid_at = paid ? new Date().toISOString() : null;
+  db.prepare('UPDATE payments SET paid = ?, paid_at = ?, note = ? WHERE id = ?').run(paid ? 1 : 0, paid_at, note || payment.note, req.params.id);
+  
+  res.json({ id: req.params.id, paid, paid_at, note });
 });
 
-module.exports = router;
+export default router;

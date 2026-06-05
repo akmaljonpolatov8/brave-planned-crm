@@ -1,28 +1,44 @@
-const fs = require("fs");
-const path = require("path");
-const Database = require("better-sqlite3");
+import Database from "better-sqlite3";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const dbPath = path.join(__dirname, "brave_planet.sqlite");
-const schemaPath = path.join(__dirname, "schema.sql");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+const DB_PATH = path.join(__dirname, "../../crm.db");
 
-const db = new Database(dbPath);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
+let db;
 
-function initializeDatabase() {
-  const schema = fs.readFileSync(schemaPath, "utf8");
-  db.exec(schema);
+export function getDatabase() {
+  if (!db) {
+    db = new Database(DB_PATH);
+    db.pragma("foreign_keys = ON");
+  }
+  return db;
 }
 
-function transaction(fn) {
-  return db.transaction(fn)();
+export function initializeDatabase() {
+  const database = getDatabase();
+
+  // Read schema
+  const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
+
+  // Execute schema
+  database.exec(schema);
+
+  const groupColumns = database.prepare("PRAGMA table_info(groups)").all();
+  const hasCapacity = groupColumns.some((column) => column.name === "capacity");
+  if (!hasCapacity) {
+    database.exec("ALTER TABLE groups ADD COLUMN capacity INTEGER DEFAULT 20");
+  }
+
+  console.log("✅ Database initialized");
 }
 
-module.exports = {
-  db,
-  dbPath,
-  initializeDatabase,
-  transaction,
-};
+export function closeDatabase() {
+  if (db) {
+    db.close();
+    db = null;
+  }
+}

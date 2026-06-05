@@ -1,4 +1,6 @@
-const { initializeDatabase, dbPath } = require("./database");
+import { initializeDatabase, closeDatabase } from './database.js';
 
+console.log('Initializing database...');
 initializeDatabase();
-console.log(`Database initialized: ${dbPath}`);
+closeDatabase();
+console.log('✅ Database initialized successfully');

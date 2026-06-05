@@ -1,12 +1,15 @@
-require("dotenv").config();
-const app = require("./app");
-const { initializeDatabase } = require("./db/database");
-const { startScheduler } = require("./services/scheduler");
+import app from './app.js';
+import { initializeDatabase } from './db/database.js';
+import { startScheduler } from './services/scheduler.js';
 
+const PORT = process.env.PORT || 5000;
+
+// Initialize database
 initializeDatabase();
+
+// Start scheduler
 startScheduler();
 
-const port = Number(process.env.PORT || 5000);
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+app.listen(PORT, () => {
+  console.log(`✅ Server running on http://localhost:${PORT}`);
 });

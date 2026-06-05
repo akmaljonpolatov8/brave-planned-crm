@@ -1,44 +1,39 @@
-const express = require("express");
-const cors = require("cors");
-const path = require("path");
-const auth = require("./middleware/auth");
-const authRoutes = require("./routes/auth");
-const dashboardRoutes = require("./routes/dashboard");
-const attendanceRoutes = require("./routes/attendance");
-const groupsRoutes = require("./routes/groups");
-const studentsRoutes = require("./routes/students");
-const teachersRoutes = require("./routes/teachers");
-const paymentsRoutes = require("./routes/payments");
-const debtorsRoutes = require("./routes/debtors");
-const smsRoutes = require("./routes/sms");
-const reportsRoutes = require("./routes/reports");
-const importRoutes = require("./routes/import");
-const searchRoutes = require("./routes/search");
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { authenticateToken } from './middleware/auth.js';
+import authRoutes from './routes/auth.js';
+import dashboardRoutes from './routes/dashboard.js';
+import studentRoutes from './routes/students.js';
+import teacherRoutes from './routes/teachers.js';
+import groupRoutes from './routes/groups.js';
+import attendanceRoutes from './routes/attendance.js';
+import paymentRoutes from './routes/payments.js';
+import debtorRoutes from './routes/debtors.js';
+import smsRoutes from './routes/sms.js';
+
+dotenv.config();
 
 const app = express();
 
+// Middleware
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: '10mb' }));
 
-app.get("/api/health", (_req, res) => res.json({ ok: true }));
-app.use("/api/auth", authRoutes);
-app.use("/api/dashboard", auth, dashboardRoutes);
-app.use("/api/attendance", auth, attendanceRoutes);
-app.use("/api/groups", auth, groupsRoutes);
-app.use("/api/students", auth, studentsRoutes);
-app.use("/api/teachers", auth, teachersRoutes);
-app.use("/api/payments", auth, paymentsRoutes);
-app.use("/api/debtors", auth, debtorsRoutes);
-app.use("/api/sms", auth, smsRoutes);
-app.use("/api/reports", auth, reportsRoutes);
-app.use("/api/import", auth, importRoutes);
-app.use("/api/search", auth, searchRoutes);
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', authenticateToken, dashboardRoutes);
+app.use('/api/students', authenticateToken, studentRoutes);
+app.use('/api/teachers', authenticateToken, teacherRoutes);
+app.use('/api/groups', authenticateToken, groupRoutes);
+app.use('/api/attendance', authenticateToken, attendanceRoutes);
+app.use('/api/payments', authenticateToken, paymentRoutes);
+app.use('/api/debtors', authenticateToken, debtorRoutes);
+app.use('/api/sms', authenticateToken, smsRoutes);
 
-const clientDist = path.join(process.cwd(), "client", "dist");
-app.use(express.static(clientDist));
-app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/api")) return next();
-  return res.sendFile(path.join(clientDist, "index.html"));
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
 });
 
-module.exports = app;
+export default app;

@@ -1,36 +1,51 @@
-const normalizePhone = (phone) => {
-  if (!phone) return null;
-  return String(phone).replace(/[-\s]/g, "").trim() || null;
-};
+import axios from 'axios';
 
-const getParentPhone = (student) => {
-  return student.ota_phone || student.ona_phone || student.telefon || null;
-};
+const ESKIZ_API = 'https://notify.eskiz.uz';
+let eskizToken = null;
+let tokenExpiry = null;
 
-const sendSMS = async (phone, message) => {
-  const cleanPhone = normalizePhone(phone);
-  if (!cleanPhone) {
-    return { success: false, message: "Telefon topilmadi" };
+export async function getEskizToken() {
+  // Return cached token if valid
+  if (eskizToken && tokenExpiry && Date.now() < tokenExpiry) {
+    return eskizToken;
   }
 
-  const response = await fetch(process.env.TEXTUP_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.TEXTUP_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      phone: cleanPhone,
-      message,
-      from: "BravePlanet",
-    }),
-  });
+  try {
+    const response = await axios.post(`${ESKIZ_API}/api/auth/login`, {
+      email: process.env.ESKIZ_EMAIL,
+      password: process.env.ESKIZ_PASSWORD
+    });
 
-  return response.json();
-};
+    eskizToken = response.data.data.token;
+    // Token valid for 30 days, cache for 25 days
+    tokenExpiry = Date.now() + (25 * 24 * 60 * 60 * 1000);
 
-module.exports = {
-  sendSMS,
-  getParentPhone,
-  normalizePhone,
-};
+    console.log('✅ Eskiz token obtained');
+    return eskizToken;
+  } catch (err) {
+    console.error('❌ Error getting Eskiz token:', err.message);
+    throw err;
+  }
+}
+
+export async function sendSMS(phoneNumber, message) {
+  try {
+    const token = await getEskizToken();
+
+    const response = await axios.post(`${ESKIZ_API}/api/message/sms/send`, {
+      mobile_phone: phoneNumber,
+      message: message,
+      from: '4546'
+    }, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    console.log(`✅ SMS sent to ${phoneNumber}`);
+    return response.data;
+  } catch (err) {
+    console.error(`❌ Error sending SMS to ${phoneNumber}:`, err.message);
+    throw err;
+  }
+}

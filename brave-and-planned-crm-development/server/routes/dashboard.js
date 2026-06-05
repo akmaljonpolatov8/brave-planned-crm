@@ -1,98 +1,90 @@
-const express = require("express");
-const { db } = require("../db/database");
+import express from 'express';
+import { getDatabase } from '../db/database.js';
 
 const router = express.Router();
 
-router.get("/", (req, res) => {
-  const month = new Date().toISOString().slice(0, 7);
-  const students = db
-    .prepare("SELECT COUNT(*) AS count FROM students")
-    .get().count;
-  const groups = db.prepare("SELECT COUNT(*) AS count FROM groups").get().count;
-  const teachers = db
-    .prepare("SELECT COUNT(*) AS count FROM teachers")
-    .get().count;
-  const unpaid = db
-    .prepare(
-      "SELECT COUNT(*) AS count FROM payments WHERE month = ? AND paid = 0",
-    )
-    .get(month).count;
-  const revenue =
-    req.user.role === "owner"
-      ? db
-          .prepare(
-            "SELECT COALESCE(SUM(amount), 0) AS sum FROM payments WHERE month = ? AND paid = 1",
-          )
-          .get(month).sum
-      : null;
+router.get('/', (req, res) => {
+  const db = getDatabase();
+  const role = req.user.role;
 
-  const lastPayments = db
-    .prepare(
-      `
-    SELECT s.full_name, g.name AS group_name, p.amount, p.paid
+  // Total students
+  const totalStudents = db.prepare('SELECT COUNT(*) as count FROM students').get().count;
+
+  // Active groups
+  const activeGroups = db.prepare('SELECT COUNT(*) as count FROM groups WHERE is_active = 1').get().count;
+
+  // Teachers count
+  const teachers = db.prepare('SELECT COUNT(*) as count FROM teachers WHERE is_active = 1').get().count;
+
+  // Revenue (only owner)
+  let revenue = null;
+  if (role === 'owner') {
+    const result = db.prepare(`
+      SELECT SUM(amount) as total FROM payments WHERE paid = 1
+    `).get();
+    revenue = result.total || 0;
+  }
+
+  // Debtors count (previous month unpaid)
+  const now = new Date();
+  const prevMonth = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`;
+  
+  const debtors = db.prepare(`
+    SELECT COUNT(DISTINCT student_id) as count FROM payments 
+    WHERE month = ? AND paid = 0
+  `).get(prevMonth).count;
+
+  // Students delta (this month)
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const studentsDelta = db.prepare(`
+    SELECT COUNT(DISTINCT student_id) as count FROM group_students 
+    WHERE joined_at >= ? AND joined_at < ?
+  `).get(`${currentMonth}-01`, `${currentMonth}-32`).count;
+
+  // Last payments
+  const lastPayments = db.prepare(`
+    SELECT 
+      p.id, s.full_name, g.name as group_name, p.amount, p.paid, p.paid_at
     FROM payments p
-    JOIN students s ON s.id = p.student_id
-    LEFT JOIN groups g ON g.id = p.group_id
-    ORDER BY COALESCE(p.paid_at, p.month) DESC
+    JOIN students s ON p.student_id = s.id
+    JOIN groups g ON p.group_id = g.id
+    ORDER BY p.created_at DESC
     LIMIT 10
-  `,
-    )
-    .all();
+  `).all();
 
-  const groupStatus = db
-    .prepare(
-      `
-    SELECT g.id, g.name,
-      COUNT(s.id) AS total,
-      SUM(CASE WHEN a.status = 'present' AND a.date = date('now') THEN 1 ELSE 0 END) AS present_today
+  // Group status (percentage of students vs capacity)
+  const groupStatus = db.prepare(`
+    SELECT 
+      g.id, g.name,
+      COUNT(gs.id) as enrolled,
+      20 as capacity
     FROM groups g
-    LEFT JOIN students s ON s.group_id = g.id
-    LEFT JOIN attendance a ON a.group_id = g.id AND a.student_id = s.id
+    LEFT JOIN group_students gs ON g.id = gs.group_id AND gs.is_active = 1
+    WHERE g.is_active = 1
     GROUP BY g.id
-    ORDER BY g.name
-    LIMIT 6
-  `,
-    )
-    .all();
+  `).all();
 
-  const todayLessons = db
-    .prepare(
-      `
-    SELECT id, name, schedule_time
-    FROM groups
-    ORDER BY schedule_time
-    LIMIT 6
-  `,
-    )
-    .all()
-    .map((group) => {
-      const marked =
-        db
-          .prepare(
-            "SELECT COUNT(*) AS count FROM attendance WHERE group_id = ? AND date = date('now')",
-          )
-          .get(group.id).count > 0;
-      return {
-        name: group.name,
-        time: group.schedule_time || "--:--",
-        marked,
-        status: marked ? "Belgilandi" : "Kutilmoqda",
-      };
-    });
+  // Today's attendance
+  const today = new Date().toISOString().split('T')[0];
+  const todayAttendance = db.prepare(`
+    SELECT DISTINCT g.id, g.name, g.start_time, g.end_time
+    FROM groups g
+    WHERE g.is_active = 1
+  `).all();
 
   res.json({
     topStats: {
-      students,
-      groups,
+      students: totalStudents,
+      groups: activeGroups,
       teachers,
       revenue,
-      unpaid,
-      studentsDelta: 8,
+      debtors,
+      studentsDelta
     },
     lastPayments,
     groupStatus,
-    todayLessons,
+    todayAttendance
   });
 });
 
-module.exports = router;
+export default router;
