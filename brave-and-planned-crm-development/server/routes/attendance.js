@@ -1,6 +1,6 @@
-const express = require("express");
-const { db } = require("../db/database");
-const roleCheck = require("../middleware/roleCheck");
+import express from 'express';
+import { getDatabase } from '../db/database.js';
+import { roleCheck } from '../middleware/roleCheck.js';
 
 const router = express.Router();
 
@@ -87,4 +87,4 @@ router.get("/report", (req, res) => {
   res.json({ from, to, report: rows });
 });
 
-module.exports = router;
+export default router;

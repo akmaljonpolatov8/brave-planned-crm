@@ -1,133 +1,57 @@
-const express = require("express");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const { db } = require("../db/database");
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import { getDatabase } from '../db/database.js';
+import { generateToken, authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
-const ACCESS_TOKEN_COOKIE = "bp_crm_token";
-
-function serializeCookie(name, value, options = {}) {
-  const parts = [`${name}=${value}`];
-  if (options.maxAge !== undefined)
-    parts.push(`Max-Age=${Math.floor(options.maxAge / 1000)}`);
-  if (options.httpOnly) parts.push("HttpOnly");
-  if (options.secure) parts.push("Secure");
-  if (options.sameSite) parts.push(`SameSite=${options.sameSite}`);
-  if (options.path) parts.push(`Path=${options.path}`);
-  return parts.join("; ");
-}
-
-function getToken(req) {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    return authHeader.slice(7);
-  }
-
-  const cookieHeader = req.headers.cookie || "";
-  for (const item of cookieHeader.split(";")) {
-    const [key, ...rest] = item.split("=");
-    if (key && key.trim() === ACCESS_TOKEN_COOKIE) {
-      return decodeURIComponent(rest.join("=").trim());
-    }
-  }
-
-  return null;
-}
-
-function signAccessToken(user) {
-  return jwt.sign(
-    { id: user.id, username: user.username, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" },
-  );
-}
-
-router.post("/login", (req, res) => {
+router.post('/login', (req, res) => {
   const { username, password } = req.body;
-  const user = db
-    .prepare("SELECT * FROM users WHERE username = ?")
-    .get(username);
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    return res.status(401).json({ message: "Login yoki parol noto'g'ri" });
+
+  if (!username || !password) {
+    return res.status(400).json({ message: 'Username va parol kerak' });
   }
 
-  const token = signAccessToken(user);
-  res.setHeader(
-    "Set-Cookie",
-    serializeCookie(ACCESS_TOKEN_COOKIE, encodeURIComponent(token), {
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    }),
-  );
+  const db = getDatabase();
+  const user = db.prepare('SELECT * FROM users WHERE username = ? AND is_active = 1').get(username);
 
-  return res.json({
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    return res.status(401).json({ message: 'Noto\'g\'ri username yoki parol' });
+  }
+
+  const token = generateToken(user);
+
+  res.cookie('bp_crm_token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+
+  res.json({
     user: {
       id: user.id,
       username: user.username,
       role: user.role,
-    },
+      full_name: user.full_name
+    }
   });
 });
 
-router.post("/refresh", (req, res) => {
-  try {
-    const token = getToken(req);
-    if (!token) return res.status(401).json({ message: "Token topilmadi" });
+router.get('/me', authenticateToken, (req, res) => {
+  const db = getDatabase();
+  const user = db.prepare('SELECT id, username, role, full_name FROM users WHERE id = ?').get(req.user.id);
 
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.id);
-    if (!user) return res.status(401).json({ message: "Token yaroqsiz" });
-
-    const nextToken = signAccessToken(user);
-    res.setHeader(
-      "Set-Cookie",
-      serializeCookie(ACCESS_TOKEN_COOKIE, encodeURIComponent(nextToken), {
-        httpOnly: true,
-        sameSite: "Lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      }),
-    );
-
-    return res.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-      },
-    });
-  } catch (error) {
-    return res.status(401).json({ message: "Refresh token xato" });
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
   }
+
+  res.json({ user });
 });
 
-router.post("/logout", (req, res) => {
-  res.setHeader(
-    "Set-Cookie",
-    serializeCookie(ACCESS_TOKEN_COOKIE, "", {
-      httpOnly: true,
-      sameSite: "Lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 0,
-    }),
-  );
-  return res.json({ success: true });
+router.post('/logout', (req, res) => {
+  res.clearCookie('bp_crm_token');
+  res.json({ message: 'Logged out' });
 });
 
-router.get("/me", (req, res) => {
-  const token = getToken(req);
-  if (!token) return res.status(401).json({ message: "Token topilmadi" });
-  const payload = jwt.verify(token, process.env.JWT_SECRET);
-  const user = db
-    .prepare("SELECT id, username, role FROM users WHERE id = ?")
-    .get(payload.id);
-  return res.json(user);
-});
-
-module.exports = router;
+export default router;

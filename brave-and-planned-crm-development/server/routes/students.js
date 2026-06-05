@@ -1,89 +1,186 @@
-const express = require("express");
-const { db } = require("../db/database");
-const roleCheck = require("../middleware/roleCheck");
+import express from "express";
+import { getDatabase } from "../db/database.js";
+import { roleCheck } from "../middleware/roleCheck.js";
 
 const router = express.Router();
 
+// Get all students
 router.get("/", (req, res) => {
-  const search = (req.query.search || "").trim();
-  const rows = db.prepare(`
-    SELECT s.*, g.name AS group_name,
-      p.amount AS payment_amount,
-      p.paid AS payment_paid
+  const db = getDatabase();
+  const students = db
+    .prepare(
+      `
+    SELECT s.*, 
+           GROUP_CONCAT(g.name) as groups
     FROM students s
-    LEFT JOIN groups g ON g.id = s.group_id
-    LEFT JOIN payments p ON p.student_id = s.id AND p.month = ?
-    WHERE ? = '' OR lower(s.full_name) LIKE lower(?)
+    LEFT JOIN group_students gs ON s.id = gs.student_id AND gs.is_active = 1
+    LEFT JOIN groups g ON gs.group_id = g.id
+    GROUP BY s.id
     ORDER BY s.full_name
-  `).all(new Date().toISOString().slice(0, 7), search, `%${search}%`);
-  res.json(rows);
+  `,
+    )
+    .all();
+  res.json(students);
 });
 
+// Get student by ID
 router.get("/:id", (req, res) => {
-  const student = db.prepare(`
-    SELECT s.*, g.name AS group_name
-    FROM students s
-    LEFT JOIN groups g ON g.id = s.group_id
-    WHERE s.id = ?
-  `).get(req.params.id);
-  const payments = db.prepare(`
-    SELECT p.*, g.name AS group_name
-    FROM payments p
-    LEFT JOIN groups g ON g.id = p.group_id
-    WHERE p.student_id = ?
-    ORDER BY p.month DESC
-  `).all(req.params.id);
-  const attendance = db.prepare(`
-    SELECT a.*, g.name AS group_name
-    FROM attendance a
-    LEFT JOIN groups g ON g.id = a.group_id
-    WHERE a.student_id = ?
-    ORDER BY a.date DESC
-  `).all(req.params.id);
-  const transfers = db.prepare(`
-    SELECT st.*, g1.name AS from_group_name, g2.name AS to_group_name
-    FROM student_transfers st
-    LEFT JOIN groups g1 ON g1.id = st.from_group_id
-    LEFT JOIN groups g2 ON g2.id = st.to_group_id
-    WHERE st.student_id = ?
-    ORDER BY st.transferred_at DESC
-  `).all(req.params.id);
-  res.json({ student, payments, attendance, transfers });
+  const db = getDatabase();
+  const student = db
+    .prepare("SELECT * FROM students WHERE id = ?")
+    .get(req.params.id);
+
+  if (!student) {
+    return res.status(404).json({ message: "Student not found" });
+  }
+
+  res.json(student);
 });
 
+// Create student
 router.post("/", roleCheck("owner", "manager"), (req, res) => {
-  const { full_name, ota_phone, ona_phone, telefon, group_id, status } = req.body;
-  const result = db.prepare(`
-    INSERT INTO students (full_name, ota_phone, ona_phone, telefon, group_id, status)
+  const { full_name, phone, parent_phone, parent_name, status, notes } =
+    req.body;
+
+  if (!full_name) {
+    return res.status(400).json({ message: "Full name required" });
+  }
+
+  const db = getDatabase();
+  const result = db
+    .prepare(
+      `
+    INSERT INTO students (full_name, phone, parent_phone, parent_name, status, notes)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(full_name, ota_phone || null, ona_phone || null, telefon || null, group_id || null, status || "active");
-  res.status(201).json({ id: result.lastInsertRowid });
+  `,
+    )
+    .run(
+      full_name,
+      phone || null,
+      parent_phone || null,
+      parent_name || null,
+      status || "active",
+      notes || null,
+    );
+
+  res
+    .status(201)
+    .json({
+      id: result.lastInsertRowid,
+      full_name,
+      phone,
+      parent_phone,
+      parent_name,
+      status,
+      notes,
+    });
 });
 
+// Update student
 router.put("/:id", roleCheck("owner", "manager"), (req, res) => {
-  const { full_name, ota_phone, ona_phone, telefon, group_id, status } = req.body;
-  db.prepare(`
-    UPDATE students
-    SET full_name = ?, ota_phone = ?, ona_phone = ?, telefon = ?, group_id = ?, status = ?
+  const { full_name, phone, parent_phone, parent_name, status, notes } =
+    req.body;
+  const db = getDatabase();
+
+  const student = db
+    .prepare("SELECT * FROM students WHERE id = ?")
+    .get(req.params.id);
+  if (!student) {
+    return res.status(404).json({ message: "Student not found" });
+  }
+
+  db.prepare(
+    `
+    UPDATE students SET full_name = ?, phone = ?, parent_phone = ?, parent_name = ?, status = ?, notes = ?
     WHERE id = ?
-  `).run(full_name, ota_phone || null, ona_phone || null, telefon || null, group_id || null, status || "active", req.params.id);
-  res.json({ success: true });
+  `,
+  ).run(
+    full_name || student.full_name,
+    phone || student.phone,
+    parent_phone || student.parent_phone,
+    parent_name || student.parent_name,
+    status || student.status,
+    notes || student.notes,
+    req.params.id,
+  );
+
+  res.json({
+    id: req.params.id,
+    full_name,
+    phone,
+    parent_phone,
+    parent_name,
+    status,
+    notes,
+  });
 });
 
+// Delete student
 router.delete("/:id", roleCheck("owner"), (req, res) => {
+  const db = getDatabase();
+  const student = db
+    .prepare("SELECT * FROM students WHERE id = ?")
+    .get(req.params.id);
+
+  if (!student) {
+    return res.status(404).json({ message: "Student not found" });
+  }
+
   db.prepare("DELETE FROM students WHERE id = ?").run(req.params.id);
-  res.json({ success: true });
+  res.json({ message: "Student deleted" });
 });
 
+// Transfer student to another group
 router.post("/:id/transfer", roleCheck("owner", "manager"), (req, res) => {
-  const { to_group_id } = req.body;
-  const student = db.prepare("SELECT group_id FROM students WHERE id = ?").get(req.params.id);
-  db.prepare("UPDATE students SET group_id = ? WHERE id = ?").run(to_group_id, req.params.id);
-  db.prepare(`
-    INSERT INTO student_transfers (student_id, from_group_id, to_group_id)
-    VALUES (?, ?, ?)
-  `).run(req.params.id, student.group_id, to_group_id);
-  res.json({ success: true });
+  const {
+    from_group_id,
+    to_group_id,
+    fromGroupId,
+    toGroupId,
+    studentId: bodyStudentId,
+    note,
+  } = req.body;
+  const studentId = req.params.id;
+  const db = getDatabase();
+
+  const student = db
+    .prepare("SELECT * FROM students WHERE id = ?")
+    .get(studentId);
+  if (!student) {
+    return res.status(404).json({ message: "Student not found" });
+  }
+
+  // Remove from old group
+  const sourceGroupId = from_group_id || fromGroupId;
+  const targetGroupId = to_group_id || toGroupId;
+
+  if (!sourceGroupId || !targetGroupId) {
+    return res
+      .status(400)
+      .json({ message: "from_group_id and to_group_id required" });
+  }
+
+  db.prepare(
+    "UPDATE group_students SET is_active = 0, left_at = datetime('now') WHERE student_id = ? AND group_id = ?",
+  ).run(bodyStudentId || studentId, sourceGroupId);
+
+  // Add to new group
+  db.prepare(
+    "INSERT INTO group_students (group_id, student_id, is_active) VALUES (?, ?, 1)",
+  ).run(targetGroupId, bodyStudentId || studentId);
+
+  // Log transfer
+  db.prepare(
+    "INSERT INTO transfers (student_id, from_group_id, to_group_id, note, done_by) VALUES (?, ?, ?, ?, ?)",
+  ).run(
+    bodyStudentId || studentId,
+    sourceGroupId,
+    targetGroupId,
+    note || null,
+    req.user.id,
+  );
+
+  res.json({ message: "Student transferred" });
 });
 
-module.exports = router;
+export default router;

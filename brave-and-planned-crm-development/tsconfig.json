@@ -16,9 +16,20 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
+      "@/lib/*": ["lib/*"],
+      "@/auth": ["auth.ts"],
       "@/*": ["client/src/*"]
     }
   },
-  "include": ["client/src", "client/vite.config.ts"],
+  "include": [
+    "client/src",
+    "client/vite.config.ts",
+    "app",
+    "auth.ts",
+    "middleware.ts",
+    "lib",
+    "types",
+    "app/api"
+  ],
   "exclude": ["node_modules", "server/dist", "client/dist"]
 }

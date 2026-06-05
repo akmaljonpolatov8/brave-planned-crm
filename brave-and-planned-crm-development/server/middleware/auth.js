@@ -1,34 +1,35 @@
-const jwt = require("jsonwebtoken");
+import jwt from 'jsonwebtoken';
 
-function getToken(req) {
-  const header = req.headers.authorization;
-  if (header && header.startsWith("Bearer ")) {
-    return header.slice(7);
-  }
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-  const cookieHeader = req.headers.cookie || "";
-  for (const item of cookieHeader.split(";")) {
-    const [key, ...rest] = item.split("=");
-    if (key && key.trim() === "bp_crm_token") {
-      return decodeURIComponent(rest.join("=").trim());
+export function generateToken(user) {
+  return jwt.sign(
+    { id: user.id, username: user.username, role: user.role, full_name: user.full_name },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+export function authenticateToken(req, res, next) {
+  // Try to get token from cookie or Authorization header
+  let token = req.cookies?.bp_crm_token;
+  
+  if (!token) {
+    const authHeader = req.headers['authorization'];
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.slice(7);
     }
   }
 
-  return null;
-}
-
-function auth(req, res, next) {
-  const token = getToken(req);
   if (!token) {
-    return res.status(401).json({ message: "Avtorizatsiya talab qilinadi" });
+    return res.status(401).json({ message: 'Token not found' });
   }
 
-  try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
-    return next();
-  } catch (error) {
-    return res.status(401).json({ message: "Token yaroqsiz" });
-  }
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
+    req.user = user;
+    next();
+  });
 }
-
-module.exports = auth;

@@ -1,5 +1,35 @@
-import type { UserRole } from "../types";
+export interface User {
+  role: 'owner' | 'manager' | 'teacher'
+}
 
-export const canSeeRevenue = (role?: UserRole) => role === "owner";
-export const canDelete = (role?: UserRole) => role === "owner";
-export const canManage = (role?: UserRole) => role === "owner" || role === "manager";
+export function canCreate(user: User | null) {
+  return user?.role === 'owner' || user?.role === 'manager'
+}
+
+export function canEdit(user: User | null) {
+  return user?.role === 'owner' || user?.role === 'manager'
+}
+
+export function canDelete(user: User | null) {
+  return user?.role === 'owner'
+}
+
+export function canViewRevenue(user: User | null) {
+  return user?.role === 'owner'
+}
+
+export function canManageAttendance(user: User | null) {
+  return user?.role === 'owner' || user?.role === 'manager'
+}
+
+export function canManagePayments(user: User | null) {
+  return user?.role === 'owner' || user?.role === 'manager'
+}
+
+export function canSendSMS(user: User | null) {
+  return user?.role === 'owner' || user?.role === 'manager'
+}
+
+export function canEditPrice(user: User | null) {
+  return user?.role === 'owner' || user?.role === 'manager'
+}
