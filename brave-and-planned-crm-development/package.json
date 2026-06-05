@@ -5,10 +5,10 @@
   "description": "Brave and Planet ta'lim markazi uchun CRM",
   "scripts": {
     "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\"",
-    "dev:client": "vite --config vite.config.ts",
+    "dev:client": "npx vite --config vite.config.ts",
     "dev:server": "node --watch server/index.js",
     "build": "npm run build:client",
-    "build:client": "vite build --config vite.config.ts",
+    "build:client": "npx vite build --config vite.config.ts",
     "start": "node server/index.js",
     "db:init": "node server/db/init.js",
     "db:seed": "node server/db/seed.js",
