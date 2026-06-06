@@ -1,54 +1,96 @@
 import express from 'express';
-import { getDatabase } from '../db/database.js';
+import prisma from '../lib/prisma.js';
 import { roleCheck } from '../middleware/roleCheck.js';
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  const db = getDatabase();
-  const teachers = db.prepare('SELECT * FROM teachers WHERE is_active = 1 ORDER BY full_name').all();
-  res.json(teachers);
-});
+router.get('/', async (req, res) => {
+  try {
+    const teachers = await prisma.teacher.findMany({
+      where: { isActive: true },
+      orderBy: { fullName: 'asc' }
+    });
 
-router.get('/:id', (req, res) => {
-  const db = getDatabase();
-  const teacher = db.prepare('SELECT * FROM teachers WHERE id = ?').get(req.params.id);
-  
-  if (!teacher) {
-    return res.status(404).json({ message: 'Teacher not found' });
+    const result = teachers.map(t => ({
+      id: t.id,
+      full_name: t.fullName,
+      phone: t.phone,
+      is_active: t.isActive ? 1 : 0,
+      created_at: t.createdAt
+    }));
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: 'Server xatolik' });
   }
-  res.json(teacher);
 });
 
-router.post('/', roleCheck('owner', 'manager'), (req, res) => {
+router.get('/:id', async (req, res) => {
+  try {
+    const teacher = await prisma.teacher.findUnique({
+      where: { id: Number(req.params.id) }
+    });
+
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
+
+    res.json({
+      id: teacher.id,
+      full_name: teacher.fullName,
+      phone: teacher.phone,
+      is_active: teacher.isActive ? 1 : 0
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server xatolik' });
+  }
+});
+
+router.post('/', roleCheck('owner', 'manager'), async (req, res) => {
   const { full_name, phone } = req.body;
 
-  if (!full_name) {
-    return res.status(400).json({ message: 'Full name required' });
-  }
+  if (!full_name) return res.status(400).json({ message: 'Full name required' });
 
-  const db = getDatabase();
-  const result = db.prepare('INSERT INTO teachers (full_name, phone, is_active) VALUES (?, ?, 1)').run(full_name, phone || null);
-  res.status(201).json({ id: result.lastInsertRowid, full_name, phone });
+  try {
+    const teacher = await prisma.teacher.create({
+      data: { fullName: full_name, phone: phone || null, isActive: true }
+    });
+
+    res.status(201).json({ id: teacher.id, full_name: teacher.fullName, phone: teacher.phone });
+  } catch (err) {
+    res.status(500).json({ message: 'Server xatolik' });
+  }
 });
 
-router.put('/:id', roleCheck('owner', 'manager'), (req, res) => {
+router.put('/:id', roleCheck('owner', 'manager'), async (req, res) => {
   const { full_name, phone } = req.body;
-  const db = getDatabase();
 
-  const teacher = db.prepare('SELECT * FROM teachers WHERE id = ?').get(req.params.id);
-  if (!teacher) {
-    return res.status(404).json({ message: 'Teacher not found' });
+  try {
+    const existing = await prisma.teacher.findUnique({ where: { id: Number(req.params.id) } });
+    if (!existing) return res.status(404).json({ message: 'Teacher not found' });
+
+    const teacher = await prisma.teacher.update({
+      where: { id: Number(req.params.id) },
+      data: {
+        fullName: full_name || existing.fullName,
+        phone: phone !== undefined ? phone : existing.phone
+      }
+    });
+
+    res.json({ id: teacher.id, full_name: teacher.fullName, phone: teacher.phone });
+  } catch (err) {
+    res.status(500).json({ message: 'Server xatolik' });
   }
-
-  db.prepare('UPDATE teachers SET full_name = ?, phone = ? WHERE id = ?').run(full_name || teacher.full_name, phone !== undefined ? phone : teacher.phone, req.params.id);
-  res.json({ id: req.params.id, full_name, phone });
 });
 
-router.delete('/:id', roleCheck('owner'), (req, res) => {
-  const db = getDatabase();
-  db.prepare('UPDATE teachers SET is_active = 0 WHERE id = ?').run(req.params.id);
-  res.json({ message: 'Teacher deleted' });
+router.delete('/:id', roleCheck('owner'), async (req, res) => {
+  try {
+    await prisma.teacher.update({
+      where: { id: Number(req.params.id) },
+      data: { isActive: false }
+    });
+    res.json({ message: 'Teacher deleted' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server xatolik' });
+  }
 });
 
 export default router;

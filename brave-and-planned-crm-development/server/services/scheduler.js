@@ -1,50 +1,58 @@
 import cron from 'node-cron';
-import { getDatabase } from '../db/database.js';
+import prisma from '../lib/prisma.js';
 import { sendSMS } from './smsService.js';
 
 export function startScheduler() {
   // Every 2nd of month at 09:00 (Asia/Tashkent timezone)
   cron.schedule('0 9 2 * *', async () => {
     console.log('🔄 Running scheduled SMS for debtors...');
-    
+
     try {
-      const db = getDatabase();
-      
-      // Get previous month
       const now = new Date();
       const prevMonth = `${now.getFullYear()}-${String(now.getMonth()).padStart(2, '0')}`;
 
-      // Get all unpaid payments from previous month
-      const debtors = db.prepare(`
-        SELECT DISTINCT
-          s.id, s.full_name, s.parent_phone, s.parent_name,
-          g.name as group_name,
-          SUM(p.amount) as total_amount
-        FROM payments p
-        JOIN students s ON p.student_id = s.id
-        JOIN groups g ON p.group_id = g.id
-        WHERE p.paid = 0 AND p.month = ?
-        GROUP BY s.id
-      `).all(prevMonth);
+      const debtors = await prisma.payment.findMany({
+        where: { paid: false, month: prevMonth },
+        include: {
+          student: { select: { id: true, fullName: true, parentPhone: true, parentName: true, phone: true } },
+          group: { select: { name: true } }
+        }
+      });
 
       console.log(`Found ${debtors.length} debtors for ${prevMonth}`);
 
       for (const debtor of debtors) {
+        const phone = debtor.student.parentPhone || debtor.student.phone;
+        if (!phone) continue;
+
         try {
-          const message = `Hurmatli ${debtor.parent_name}, ${debtor.full_name}ning ${prevMonth} oyi uchun ${debtor.total_amount.toLocaleString()} so'm to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet ta'lim markazi.`;
-          
-          await sendSMS(debtor.parent_phone, message);
-          
-          // Log SMS
-          db.prepare('INSERT INTO sms_logs (student_id, phone, message, month, status) VALUES (?, ?, ?, ?, ?)')
-            .run(debtor.id, debtor.parent_phone, message, prevMonth, 'sent');
-          
-          console.log(`✅ SMS sent to ${debtor.parent_name} (${debtor.parent_phone})`);
+          const message = `Hurmatli ${debtor.student.parentName || 'ota-ona'}, ${debtor.student.fullName}ning ${prevMonth} oyi uchun ${debtor.amount.toLocaleString()} so'm to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet ta'lim markazi.`;
+
+          await sendSMS(phone, message);
+
+          await prisma.smsLog.create({
+            data: {
+              studentId: debtor.student.id,
+              phone,
+              message,
+              month: prevMonth,
+              status: 'sent'
+            }
+          });
+
+          console.log(`✅ SMS sent to ${debtor.student.parentName} (${phone})`);
         } catch (err) {
-          console.error(`❌ Failed to send SMS to ${debtor.parent_name}:`, err.message);
-          
-          db.prepare('INSERT INTO sms_logs (student_id, phone, message, month, status) VALUES (?, ?, ?, ?, ?)')
-            .run(debtor.id, debtor.parent_phone, '', prevMonth, 'failed');
+          console.error(`❌ Failed to send SMS to ${debtor.student.parentName}:`, err.message);
+
+          await prisma.smsLog.create({
+            data: {
+              studentId: debtor.student.id,
+              phone,
+              message: '',
+              month: prevMonth,
+              status: 'failed'
+            }
+          });
         }
       }
 

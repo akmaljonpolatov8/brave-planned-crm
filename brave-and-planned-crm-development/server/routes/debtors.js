@@ -1,28 +1,40 @@
 import express from 'express';
-import { getDatabase } from '../db/database.js';
-import { roleCheck } from '../middleware/roleCheck.js';
+import prisma from '../lib/prisma.js';
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const { month } = req.query;
-  const db = getDatabase();
-
   const queryMonth = month || new Date().toISOString().substring(0, 7);
 
-  const debtors = db.prepare(`
-    SELECT DISTINCT
-      s.id, s.full_name, s.phone, s.parent_phone, s.parent_name,
-      g.name as group_name,
-      p.amount, p.month
-    FROM payments p
-    JOIN students s ON p.student_id = s.id
-    JOIN groups g ON p.group_id = g.id
-    WHERE p.paid = 0 AND p.month = ?
-    ORDER BY s.full_name
-  `).all(queryMonth);
+  try {
+    const debtors = await prisma.payment.findMany({
+      where: { paid: false, month: queryMonth },
+      include: {
+        student: { select: { id: true, fullName: true, phone: true, parentPhone: true, parentName: true } },
+        group: { select: { name: true } }
+      },
+      orderBy: { student: { fullName: 'asc' } }
+    });
 
-  res.json(debtors);
+    const result = debtors.map(p => ({
+      id: p.student.id,
+      full_name: p.student.fullName,
+      phone: p.student.phone,
+      parent_phone: p.student.parentPhone,
+      parent_name: p.student.parentName,
+      group_name: p.group.name,
+      amount: p.amount,
+      month: p.month
+    }));
+
+    // Remove duplicates by student id
+    const unique = [...new Map(result.map(r => [r.id, r])).values()];
+    res.json(unique);
+  } catch (err) {
+    console.error('Get debtors error:', err);
+    res.status(500).json({ message: 'Server xatolik' });
+  }
 });
 
 export default router;
