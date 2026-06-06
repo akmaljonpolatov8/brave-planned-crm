@@ -88,12 +88,23 @@ router.get('/', async (req, res) => {
         groups: activeGroups,
         teachers,
         revenue,
-        debtors,
+        unpaid: debtors,
         studentsDelta
       },
       lastPayments: lastPaymentsResult,
-      groupStatus,
-      todayAttendance
+      groupStatus: groupStatus.map(g => ({
+        id: g.id,
+        name: g.name,
+        total: g.capacity,
+        present_today: g.enrolled
+      })),
+      todayLessons: todayAttendance.map(g => ({
+        id: g.id,
+        name: g.name,
+        time: g.startTime ? `${g.startTime}${g.endTime ? ' - ' + g.endTime : ''}` : null,
+        marked: false,
+        status: 'Kutilmoqda'
+      }))
     });
   } catch (err) {
     console.error('Dashboard error:', err);
