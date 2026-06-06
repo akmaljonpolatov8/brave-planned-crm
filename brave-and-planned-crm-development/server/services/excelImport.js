@@ -1,6 +1,6 @@
-const XLSX = require("xlsx");
-const { db, transaction } = require("../db/database");
-const { normalizePhone } = require("./smsService");
+import XLSX from "xlsx";
+import { db, transaction } from "../db/database.js";
+import { normalizePhone } from "./smsService.js";
 
 const cleanPhoneValue = (value) => {
   if (value === null || value === undefined) return null;
@@ -60,7 +60,7 @@ const parseWorkbook = (buffer) => {
   return groups;
 };
 
-const previewImport = (buffer) => {
+export const previewImport = (buffer) => {
   const groups = parseWorkbook(buffer);
   return {
     groups: groups.map((group) => ({
@@ -71,7 +71,7 @@ const previewImport = (buffer) => {
   };
 };
 
-const saveImport = (buffer) => {
+export const saveImport = (buffer) => {
   const parsedGroups = parseWorkbook(buffer);
   let teachersCreated = 0;
   let groupsCreated = 0;
@@ -145,9 +145,4 @@ const saveImport = (buffer) => {
   };
 };
 
-module.exports = {
-  previewImport,
-  saveImport,
-  parseWorkbook,
-  parseSheetName,
-};
+export { parseWorkbook, parseSheetName };

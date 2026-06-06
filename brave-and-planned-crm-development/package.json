@@ -1,6 +1,7 @@
 {
   "name": "brave-and-planet-crm",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "description": "Brave and Planet ta'lim markazi uchun CRM",
   "scripts": {

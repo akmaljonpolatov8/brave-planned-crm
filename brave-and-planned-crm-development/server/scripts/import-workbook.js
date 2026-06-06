@@ -1,7 +1,11 @@
-const fs = require("fs");
-const path = require("path");
-const { db, initializeDatabase } = require("../db/database");
-const { saveImport } = require("../services/excelImport");
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { db, initializeDatabase } from "../db/database.js";
+import { saveImport } from "../services/excelImport.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const defaultWorkbookPath =
   "c:\\Users\\Akmaljon\\OneDrive\\Рабочий стол\\brave exel\\Talabalar_CRM_1.xlsx";

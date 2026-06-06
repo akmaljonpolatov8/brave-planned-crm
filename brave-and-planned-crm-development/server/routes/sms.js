@@ -1,7 +1,7 @@
-const express = require("express");
-const { db } = require("../db/database");
-const roleCheck = require("../middleware/roleCheck");
-const { sendSMS, getParentPhone } = require("../services/smsService");
+import express from "express";
+import { db } from "../db/database.js";
+import { roleCheck } from "../middleware/roleCheck.js";
+import { sendSMS, getParentPhone } from "../services/smsService.js";
 
 const router = express.Router();
 
@@ -99,4 +99,4 @@ router.get("/logs", (req, res) => {
   res.json(logs);
 });
 
-module.exports = router;
+export default router;
