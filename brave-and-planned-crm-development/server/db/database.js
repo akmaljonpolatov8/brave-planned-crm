@@ -8,14 +8,14 @@ const __dirname = path.dirname(__filename);
 
 const DB_PATH = path.join(__dirname, "../../crm.db");
 
-let db;
+let _db;
 
 export function getDatabase() {
-  if (!db) {
-    db = new Database(DB_PATH);
-    db.pragma("foreign_keys = ON");
+  if (!_db) {
+    _db = new Database(DB_PATH);
+    _db.pragma("foreign_keys = ON");
   }
-  return db;
+  return _db;
 }
 
 export function initializeDatabase() {
@@ -37,8 +37,26 @@ export function initializeDatabase() {
 }
 
 export function closeDatabase() {
-  if (db) {
-    db.close();
-    db = null;
+  if (_db) {
+    _db.close();
+    _db = null;
   }
+}
+
+// Lazy proxy — allows `import { db } from '../db/database.js'`
+export const db = new Proxy({}, {
+  get(_target, prop) {
+    const database = getDatabase();
+    const value = database[prop];
+    if (typeof value === "function") {
+      return value.bind(database);
+    }
+    return value;
+  }
+});
+
+export function transaction(fn) {
+  const database = getDatabase();
+  const trx = database.transaction(fn);
+  return trx();
 }
