@@ -4,6 +4,22 @@ const ESKIZ_API = 'https://notify.eskiz.uz';
 let eskizToken = null;
 let tokenExpiry = null;
 
+export function normalizePhone(raw) {
+  if (!raw) return null;
+  let phone = String(raw).replace(/[\s\-\(\)]/g, '');
+  // Remove leading + if present for normalization
+  if (phone.startsWith('+')) phone = phone.slice(1);
+  // Ensure it starts with country code
+  if (phone.startsWith('998') && phone.length === 12) return '+' + phone;
+  if (phone.startsWith('7') && phone.length === 11) return '+' + phone;
+  if (phone.length === 9 && /^\d+$/.test(phone)) return '+998' + phone;
+  return '+' + phone;
+}
+
+export function getParentPhone(student) {
+  return student.ota_phone || student.ona_phone || student.telefon || null;
+}
+
 export async function getEskizToken() {
   // Return cached token if valid
   if (eskizToken && tokenExpiry && Date.now() < tokenExpiry) {

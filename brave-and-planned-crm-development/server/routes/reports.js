@@ -1,5 +1,5 @@
-const express = require("express");
-const { db } = require("../db/database");
+import express from "express";
+import { db } from "../db/database.js";
 
 const router = express.Router();
 
@@ -44,4 +44,4 @@ router.get("/weekly", (req, res) => {
   res.json({ from, to, report });
 });
 
-module.exports = router;
+export default router;

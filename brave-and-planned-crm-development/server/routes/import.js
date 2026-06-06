@@ -1,7 +1,7 @@
-const express = require("express");
-const multer = require("multer");
-const { previewImport, saveImport } = require("../services/excelImport");
-const roleCheck = require("../middleware/roleCheck");
+import express from "express";
+import multer from "multer";
+import { previewImport, saveImport } from "../services/excelImport.js";
+import { roleCheck } from "../middleware/roleCheck.js";
 
 const router = express.Router();
 const upload = multer();
@@ -16,4 +16,4 @@ router.post("/excel", roleCheck("owner", "manager"), upload.single("file"), (req
   res.json(saveImport(req.file.buffer));
 });
 
-module.exports = router;
+export default router;
