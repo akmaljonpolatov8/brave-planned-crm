@@ -4,7 +4,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 
 export function generateToken(user) {
   return jwt.sign(
-    { id: user.id, username: user.username, role: user.role, full_name: user.full_name },
+    { id: user.id, username: user.username, role: user.role, full_name: user.fullName },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
@@ -13,7 +13,7 @@ export function generateToken(user) {
 export function authenticateToken(req, res, next) {
   // Try to get token from cookie or Authorization header
   let token = req.cookies?.bp_crm_token;
-  
+
   if (!token) {
     const authHeader = req.headers['authorization'];
     if (authHeader?.startsWith('Bearer ')) {

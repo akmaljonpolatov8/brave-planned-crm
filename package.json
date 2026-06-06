@@ -4,12 +4,10 @@
   "scripts": {
     "postinstall": "cd brave-and-planned-crm-development && npm install --include=dev",
     "dev": "npm --prefix brave-and-planned-crm-development run dev",
-    "build": "cd brave-and-planned-crm-development && node node_modules/vite/bin/vite.js build --config vite.config.ts",
-    "build:client": "cd brave-and-planned-crm-development && node node_modules/vite/bin/vite.js build --config vite.config.ts",
-    "start": "npm --prefix brave-and-planned-crm-development run start",
-    "db:init": "npm --prefix brave-and-planned-crm-development run db:init",
-    "db:seed": "npm --prefix brave-and-planned-crm-development run db:seed",
-    "import:excel": "npm --prefix brave-and-planned-crm-development run import:excel"
+    "build": "cd brave-and-planned-crm-development && npx prisma generate && node node_modules/vite/bin/vite.js build --config vite.config.ts",
+    "start": "cd brave-and-planned-crm-development && npx prisma db push --accept-data-loss && node server/index.js",
+    "db:push": "cd brave-and-planned-crm-development && npx prisma db push",
+    "db:seed": "cd brave-and-planned-crm-development && node prisma/seed.js"
   },
   "engines": {
     "node": ">=18.0.0"
