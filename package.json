@@ -4,8 +4,8 @@
   "scripts": {
     "postinstall": "cd brave-and-planned-crm-development && npm install --include=dev",
     "dev": "npm --prefix brave-and-planned-crm-development run dev",
-    "build": "cd brave-and-planned-crm-development && npx vite build --config vite.config.ts",
-    "build:client": "cd brave-and-planned-crm-development && npx vite build --config vite.config.ts",
+    "build": "cd brave-and-planned-crm-development && node node_modules/vite/bin/vite.js build --config vite.config.ts",
+    "build:client": "cd brave-and-planned-crm-development && node node_modules/vite/bin/vite.js build --config vite.config.ts",
     "start": "npm --prefix brave-and-planned-crm-development run start",
     "db:init": "npm --prefix brave-and-planned-crm-development run db:init",
     "db:seed": "npm --prefix brave-and-planned-crm-development run db:seed",
