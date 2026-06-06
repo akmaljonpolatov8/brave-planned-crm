@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../api/axios";
-import { GroupStatus } from "../components/dashboard/GroupStatus";
-import { PaymentTable } from "../components/dashboard/PaymentTable";
-import { StatCard } from "../components/dashboard/StatCard";
-import { TodayLessons } from "../components/dashboard/TodayLessons";
 import { useAuth } from "../context/AuthContext";
 
 type DashboardData = {
@@ -20,7 +16,6 @@ type DashboardData = {
     group_name?: string | null;
     amount: number;
     paid: number;
-    status?: "paid" | "unpaid" | "pending";
   }>;
   groupStatus?: Array<{
     id: number;
@@ -37,162 +32,187 @@ type DashboardData = {
   }>;
 };
 
-function formatDateUz(date = new Date()) {
-  return new Intl.DateTimeFormat("uz-UZ", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(date);
-}
-
-function formatRevenueCompact(value: number) {
-  return new Intl.NumberFormat("en", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value);
-}
-
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-6">
-      <div className="bp-panel animate-pulse p-6">
-        <div className="h-4 w-48 rounded-full bg-white/10" />
-        <div className="mt-3 h-10 w-80 rounded-lg bg-white/10" />
-        <div className="mt-3 h-4 w-64 rounded-full bg-white/10" />
-      </div>
-
-      <div className="stats-grid">
-        {Array.from({ length: 4 }).map((_, idx) => (
-          <div key={idx} className="stat-card animate-pulse">
-            <div className="h-4 w-28 rounded-full bg-white/10" />
-            <div className="mt-4 h-12 w-24 rounded-lg bg-white/10" />
-            <div className="mt-3 h-3 w-24 rounded-full bg-white/10" />
-          </div>
-        ))}
-      </div>
-
-      <div className="bp-panel animate-pulse p-5">
-        <div className="h-4 w-44 rounded-full bg-white/10" />
-        <div className="mt-4 space-y-3">
-          {Array.from({ length: 4 }).map((_, idx) => (
-            <div key={idx} className="h-12 rounded-lg bg-white/10" />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+function formatNumber(n: number) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
+  return n.toLocaleString();
 }
 
 export function DashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
       const response = await api.get("/dashboard");
       setData(response.data);
     } catch {
-      setError("Ma'lumot yuklanmadi, qayta urinish");
+      // silently fail
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
-  const userRole = user?.role;
-  const isOwner = userRole === "owner";
-  const isTeacher = userRole === "teacher";
-
-  const students = data?.topStats?.students ?? 0;
-  const groups = data?.topStats?.groups ?? 0;
-  const teachers = data?.topStats?.teachers ?? 0;
-  const revenue = data?.topStats?.revenue ?? 0;
-  const debtors = data?.topStats?.unpaid ?? 0;
-  const studentsDelta = data?.topStats?.studentsDelta ?? 0;
+  const isOwner = user?.role === 'owner';
+  const stats = data?.topStats;
 
   return (
-    <div className="bp-dashboard space-y-6">
-      <header className="bp-panel p-6">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-extrabold text-[var(--text-primary)] sm:text-4xl">
-              Xush kelibsiz, {user?.username || "Foydalanuvchi"}!
-            </h1>
-            <p className="mt-2 text-sm text-[var(--text-muted)]">
-              Bugungi holat, to'lovlar va guruhlar bo'yicha nazorat paneli.
-            </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-[var(--gold)]">Dashboard</h1>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-[var(--text-muted)]">{user?.role}</span>
+          <div className="h-8 w-8 rounded-full bg-[var(--bg-card2)] flex items-center justify-center text-xs font-bold text-[var(--gold)]">
+            {user?.full_name?.charAt(0) || 'U'}
           </div>
-          <p className="text-sm font-medium text-[var(--text-muted)]">
-            {formatDateUz()}
-          </p>
         </div>
-      </header>
+      </div>
 
-      {loading ? <DashboardSkeleton /> : null}
-
-      {!loading && error ? (
-        <div className="bp-panel p-6 text-center">
-          <p className="text-[var(--text-primary)]">{error}</p>
-          <button className="btn-secondary mt-4" onClick={loadDashboard}>
-            Qayta urinish
-          </button>
+      {/* Stat Cards */}
+      {!loading && (
+        <div className="stats-grid">
+          <div className="stat-card bp-fadeup bp-delay-0">
+            <p className="stat-title">Jami o'quvchilar</p>
+            <p className="stat-value" style={{ color: '#FFD662' }}>{stats?.students ?? 0}</p>
+            <p className="stat-sub">+{stats?.studentsDelta ?? 0} bu oy</p>
+          </div>
+          <div className="stat-card bp-fadeup bp-delay-1">
+            <p className="stat-title">Faol guruhlar</p>
+            <p className="stat-value" style={{ color: '#a78bfa' }}>{stats?.groups ?? 0}</p>
+            <p className="stat-sub">{stats?.teachers ?? 0} ta o'qituvchi</p>
+          </div>
+          {isOwner && (
+            <div className="stat-card bp-fadeup bp-delay-2">
+              <p className="stat-title">Daromad (oy)</p>
+              <p className="stat-value" style={{ color: '#4ade80' }}>{formatNumber(stats?.revenue ?? 0)}</p>
+              <p className="stat-sub">so'm</p>
+            </div>
+          )}
+          <div className="stat-card bp-fadeup bp-delay-3">
+            <p className="stat-title">Qarzdorlar</p>
+            <p className="stat-value" style={{ color: '#f87171' }}>{stats?.unpaid ?? 0}</p>
+            <p className="stat-sub">15-dan keyin</p>
+          </div>
         </div>
-      ) : null}
+      )}
 
-      {!loading && !error ? (
-        <>
-          {!isTeacher ? (
-            <section className="stats-grid">
-              <StatCard
-                title="Jami o'quvchilar"
-                value={students}
-                subText={`Bu oy +${studentsDelta} ta`}
-                tone="gold"
-                delayClass="bp-delay-0"
-              />
-              <StatCard
-                title="Faol guruhlar"
-                value={groups}
-                subText={`${teachers} ta o'qituvchi`}
-                tone="gold"
-                delayClass="bp-delay-1"
-              />
-              {userRole === "owner" ? (
-                <StatCard
-                  title="Daromad (oy)"
-                  value={revenue}
-                  subText="so'm"
-                  tone="gold"
-                  delayClass="bp-delay-2"
-                  formatter={formatRevenueCompact}
-                />
-              ) : null}
-              <StatCard
-                title="Qarzdorlar"
-                value={debtors}
-                subText="15-dan keyin"
-                tone="gold"
-                delayClass={isOwner ? "bp-delay-3" : "bp-delay-2"}
-              />
-            </section>
-          ) : null}
+      {/* Loading skeleton */}
+      {loading && (
+        <div className="stats-grid">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="stat-card animate-pulse">
+              <div className="h-3 w-24 rounded bg-white/10 mb-4" />
+              <div className="h-10 w-16 rounded bg-white/10 mb-3" />
+              <div className="h-3 w-20 rounded bg-white/10" />
+            </div>
+          ))}
+        </div>
+      )}
 
-          {!isTeacher ? <PaymentTable rows={data?.lastPayments || []} /> : null}
+      {/* Oxirgi to'lovlar */}
+      {!loading && (
+        <div className="bp-panel p-0 overflow-hidden bp-fadeup bp-delay-4">
+          <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <h2 className="text-base font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+              Oxirgi to'lovlar
+            </h2>
+          </div>
+          <table className="w-full">
+            <thead>
+              <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <th className="bp-th">O'quvchi</th>
+                <th className="bp-th">Guruh</th>
+                <th className="bp-th">Summa</th>
+                <th className="bp-th">Holat</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data?.lastPayments || []).length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="bp-td text-center" style={{ color: 'var(--text-muted)' }}>
+                    Hozircha to'lovlar yo'q
+                  </td>
+                </tr>
+              ) : (
+                (data?.lastPayments || []).map((p, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid rgba(255,214,98,0.06)' }}>
+                    <td className="bp-td font-medium">{p.full_name}</td>
+                    <td className="bp-td" style={{ color: 'var(--text-muted)' }}>{p.group_name || '—'}</td>
+                    <td className="bp-td">{(p.amount || 0).toLocaleString()}</td>
+                    <td className="bp-td">
+                      <span className={`bp-badge ${p.paid ? 'bp-badge-tolangan' : 'bp-badge-qarzdor'}`}>
+                        {p.paid ? "To'langan" : "Qarzdor"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-          <section className="grid gap-6 lg:grid-cols-2">
-            <GroupStatus rows={data?.groupStatus || []} />
-            <TodayLessons rows={data?.todayLessons || []} />
-          </section>
-        </>
-      ) : null}
+      {/* Guruhlar holati + Bugungi darslar */}
+      {!loading && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Guruhlar holati */}
+          <div className="bp-panel p-5 bp-fadeup bp-delay-5">
+            <h2 className="text-base font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+              Guruhlar holati
+            </h2>
+            {(data?.groupStatus || []).length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Guruhlar yo'q</p>
+            ) : (
+              <div className="space-y-3">
+                {(data?.groupStatus || []).slice(0, 6).map((g, i) => {
+                  const pct = g.total ? Math.round((g.present_today || 0) / g.total * 100) : 0;
+                  const barClass = pct >= 70 ? 'bp-progress-good' : pct >= 40 ? 'bp-progress-mid' : 'bp-progress-low';
+                  return (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="text-sm flex-1 truncate" style={{ color: 'var(--text-primary)' }}>{g.name}</span>
+                      <span className="text-sm font-semibold" style={{ color: 'var(--gold)' }}>
+                        {g.present_today || 0}/{g.total || 0}
+                      </span>
+                      <div className="w-24 h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                        <div className={`bp-progress-fill ${barClass}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Bugungi darslar */}
+          <div className="bp-panel p-5 bp-fadeup bp-delay-5">
+            <h2 className="text-base font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
+              Bugungi darslar
+            </h2>
+            {(data?.todayLessons || []).length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Bugun darslar yo'q</p>
+            ) : (
+              <div className="space-y-3">
+                {(data?.todayLessons || []).slice(0, 6).map((l, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{l.name}</span>
+                      {l.time && <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>— {l.time}</span>}
+                    </div>
+                    <span className={`bp-badge ${l.marked ? 'bp-badge-tolangan' : 'bp-badge-kutilmoqda'}`}>
+                      {l.marked ? '✓ Belgilandi' : 'Kutilmoqda'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
