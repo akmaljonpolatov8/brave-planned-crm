@@ -6,101 +6,56 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding...');
 
-  const ownerPassword = await bcrypt.hash('admin123', 10);
-  const managerPassword = await bcrypt.hash('manager123', 10);
-  const teacherPassword = await bcrypt.hash('teacher123', 10);
+  const ownerPassword = await bcrypt.hash('hasanboy2024', 10);
+  const managerPassword = await bcrypt.hash('manager2024', 10);
 
-  // Owner
+  // Owner — Hasanboy (barcha huquqlar)
   await prisma.user.upsert({
-    where: { username: 'admin' },
+    where: { username: 'hasanboy' },
     update: {},
     create: {
-      username: 'admin',
-      fullName: 'Admin (Owner)',
+      username: 'hasanboy',
+      fullName: 'Hasanboy',
       passwordHash: ownerPassword,
       role: 'owner',
       isActive: true
     }
   });
-  console.log('✅ Owner: admin / admin123');
+  console.log('✅ Owner: hasanboy / hasanboy2024');
 
-  // Manager
+  // Manager — Elbek
   await prisma.user.upsert({
-    where: { username: 'Elbek' },
+    where: { username: 'elbek' },
     update: {},
     create: {
-      username: 'Elbek',
-      fullName: 'Elbek (Manager)',
+      username: 'elbek',
+      fullName: 'Elbek',
       passwordHash: managerPassword,
       role: 'manager',
       isActive: true
     }
   });
-  console.log('✅ Manager: Elbek / manager123');
+  console.log('✅ Manager: elbek / manager2024');
 
+  // Manager — Doniyor
   await prisma.user.upsert({
-    where: { username: 'manager' },
+    where: { username: 'doniyor' },
     update: {},
     create: {
-      username: 'manager',
-      fullName: 'Manager',
+      username: 'doniyor',
+      fullName: 'Doniyor',
       passwordHash: managerPassword,
       role: 'manager',
       isActive: true
     }
   });
-  console.log('✅ Manager: manager / manager123');
+  console.log('✅ Manager: doniyor / manager2024');
 
-  // Teachers (with user accounts)
-  const teachersData = [
-    { username: 'azizbek', fullName: 'Azizbek' },
-    { username: 'oydina', fullName: 'Oydina' },
-    { username: 'parvina', fullName: 'Parvina' },
-    { username: 'iqboljon', fullName: 'Iqboljon' },
-    { username: 'bexruz', fullName: 'Bexruz' },
-    { username: 'shaxina', fullName: 'Shaxina' },
-    { username: 'hasanboy', fullName: 'Hasanboy' },
-    { username: 'doniyorbek', fullName: 'Doniyorbek' },
-    { username: 'farangiz', fullName: 'Farangiz' },
-    { username: 'ramazon', fullName: 'Ramazon' },
-    { username: 'shahlo', fullName: 'Shahlo' },
-    { username: 'afruzbek', fullName: 'Afruzbek' },
-  ];
-
-  for (const t of teachersData) {
-    const user = await prisma.user.upsert({
-      where: { username: t.username },
-      update: {},
-      create: {
-        username: t.username,
-        fullName: t.fullName,
-        passwordHash: teacherPassword,
-        role: 'teacher',
-        isActive: true
-      }
-    });
-
-    await prisma.teacher.upsert({
-      where: { userId: user.id },
-      update: {},
-      create: {
-        fullName: t.fullName,
-        phone: null,
-        isActive: true,
-        userId: user.id
-      }
-    });
-  }
-  console.log('✅ 12 ta o\'qituvchi yaratildi (parol: teacher123)');
-
-  console.log('\\n=== BARCHA FOYDALANUVCHILAR ===');
-  console.log('Owner:   admin / admin123');
-  console.log('Manager: Elbek / manager123');
-  console.log('Manager: manager / manager123');
-  console.log('Teachers: azizbek, oydina, parvina, iqboljon, bexruz,');
-  console.log('          shaxina, hasanboy, doniyorbek, farangiz,');
-  console.log('          ramazon, shahlo, afruzbek / teacher123');
-  console.log('\\nSeed muvaffaqiyatli tugadi!');
+  console.log('\n=== BARCHA FOYDALANUVCHILAR ===');
+  console.log('Owner:   hasanboy / hasanboy2024 (barcha huquqlar)');
+  console.log('Manager: elbek / manager2024');
+  console.log('Manager: doniyor / manager2024');
+  console.log('\nSeed muvaffaqiyatli tugadi!');
 }
 
 main()
