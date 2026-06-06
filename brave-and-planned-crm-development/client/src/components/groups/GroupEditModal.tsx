@@ -99,17 +99,24 @@ export function GroupEditModal({
   };
 
   const save = async () => {
-    await api.put(`/groups/${group.id}`, {
+    const payload = {
       name: form.name,
-      teacher_id: isOwner ? form.teacher_id || null : undefined,
+      teacher_id: isOwner ? (form.teacher_id || null) : undefined,
       schedule_days: form.schedule_days.join(","),
       start_time: form.start_time,
       end_time: form.end_time,
       monthly_fee: form.monthly_fee,
       capacity: form.capacity,
       is_active: isOwner ? form.is_active : undefined,
-    });
-    toast.success("Guruh muvaffaqiyatli yangilandi");
+    };
+
+    if (mode === "create") {
+      await api.post("/groups", payload);
+      toast.success("Guruh yaratildi");
+    } else {
+      await api.put(`/groups/${group.id}`, payload);
+      toast.success("Guruh yangilandi");
+    }
     onSaved();
     onClose();
   };

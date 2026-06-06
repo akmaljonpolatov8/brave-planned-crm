@@ -73,7 +73,7 @@ export function GroupsPage() {
                 </div>
               </div>
               <div className="rounded-full border border-white/10 px-3 py-1 text-xs">
-                {group.monthly_fee || 0} so'm
+                {(group.monthly_fee || 0).toLocaleString()} so'm
               </div>
             </div>
             <div className="mt-4 text-sm text-white/70">

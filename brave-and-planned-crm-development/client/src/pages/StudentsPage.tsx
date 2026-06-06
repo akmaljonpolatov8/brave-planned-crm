@@ -131,7 +131,15 @@ export function StudentsPage() {
                     )}
                   </div>
                 </td>
-                <td>{student.status}</td>
+                <td>
+                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                    student.status === "active" ? "bg-green-500/15 text-green-400" :
+                    student.status === "inactive" ? "bg-white/10 text-white/40" :
+                    "bg-blue-500/15 text-blue-400"
+                  }`}>
+                    {student.status === "active" ? "Faol" : student.status === "inactive" ? "Nofaol" : "Bitiruvchi"}
+                  </span>
+                </td>
                 <td className="space-x-2">
                   {user?.role === "owner" || user?.role === "manager" ? (
                     <button
