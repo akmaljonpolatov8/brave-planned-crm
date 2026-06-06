@@ -1,116 +1,100 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../api/axios";
-import { Modal } from "../components/Modal";
 import { PageShell } from "../components/PageShell";
-import { StatCard } from "../components/StatCard";
-import { PaymentTable } from "../components/PaymentTable";
 import { useAuth } from "../context/AuthContext";
-import type { Group, Payment } from "../types";
+
+type Group = { id: number; name: string; monthly_fee?: number };
+type PaymentRow = { id: number; student_id: number; full_name: string; amount: number; paid: number; paid_at?: string; group_name?: string };
 
 export function PaymentsPage() {
   const { user } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupId, setGroupId] = useState("");
-  const [rows, setRows] = useState<Payment[]>([]);
-  const [summary, setSummary] = useState<any>(null);
-  const [editing, setEditing] = useState<Payment | null>(null);
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const isOwner = user?.role === "owner";
 
   const load = async () => {
-    const [groupRes, paymentRes] = await Promise.all([
-      api.get("/groups"),
-      api.get("/payments", {
-        params: {
-          group_id: groupId || undefined,
-          month: new Date().toISOString().slice(0, 7),
-        },
-      }),
-    ]);
-    setGroups(groupRes.data);
-    setRows(paymentRes.data.rows);
-    setSummary(paymentRes.data.summary || null);
+    setLoading(true);
+    try {
+      const [groupRes, paymentRes] = await Promise.all([
+        api.get("/groups"),
+        api.get("/payments", { params: { group_id: groupId || undefined, month } }),
+      ]);
+      setGroups(groupRes.data);
+      setPayments(Array.isArray(paymentRes.data) ? paymentRes.data : paymentRes.data.rows || []);
+    } catch (err) {
+      console.error("Payments load error:", err);
+      setPayments([]);
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(() => {
-    load();
-  }, [groupId]);
+
+  useEffect(() => { load(); }, [groupId, month]);
+
+  const togglePaid = async (payment: PaymentRow) => {
+    try {
+      await api.put(`/payments/${payment.id}`, { paid: payment.paid ? 0 : 1 });
+      toast.success(payment.paid ? "Qarz belgilandi" : "To'landi belgilandi");
+      load();
+    } catch { toast.error("Xatolik"); }
+  };
 
   return (
-    <PageShell
-      title="To'lovlar"
-      description="Guruh bo'yicha filtr, to'landi tugmasi va miqdorni tahrirlash."
-    >
-      <div className="panel mb-4 grid gap-4 p-4 md:grid-cols-2">
-        <select
-          className="input"
-          value={groupId}
-          onChange={(e) => setGroupId(e.target.value)}
-        >
+    <PageShell title="To'lovlar" description="Guruh bo'yicha filtr va to'lov holati.">
+      <div className="panel mb-4 grid gap-4 p-4 md:grid-cols-3">
+        <select className="input" value={groupId} onChange={(e) => setGroupId(e.target.value)}>
           <option value="">Barcha guruhlar</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
+          {groups.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
         </select>
+        <input className="input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+        <div className="flex items-center text-sm text-white/60">{payments.length} ta yozuv</div>
       </div>
-      {user?.role === "owner" && summary ? (
-        <div className="mb-4 grid gap-4 md:grid-cols-3">
-          <StatCard
-            label="Jami tushum"
-            value={`${summary.total_revenue ?? 0} so'm`}
-            hint="Owner uchun"
-          />
-          <StatCard
-            label="To'langan"
-            value={summary.paid_count ?? 0}
-            hint="Joriy oy"
-          />
-          <StatCard
-            label="Qarz"
-            value={summary.unpaid_count ?? 0}
-            hint="Joriy oy"
-          />
-        </div>
-      ) : null}
-      <PaymentTable
-        rows={rows}
-        onPaid={async (id) => {
-          await api.patch(`/payments/${id}/pay`);
-          toast.success("To'landi");
-          load();
-        }}
-        onEdit={(row) => setEditing(row)}
-      />
-      {editing ? (
-        <Modal title="To'lovni tahrirlash" onClose={() => setEditing(null)}>
-          <input
-            className="input"
-            type="number"
-            value={editing.amount}
-            onChange={(e) =>
-              setEditing({ ...editing, amount: Number(e.target.value) })
-            }
-          />
-          <div className="mt-5 flex justify-end gap-3">
-            <button className="btn-secondary" onClick={() => setEditing(null)}>
-              Bekor qilish
-            </button>
-            <button
-              className="btn-primary"
-              onClick={async () => {
-                await api.put(`/payments/${editing.id}`, {
-                  amount: editing.amount,
-                });
-                toast.success("Yangilandi");
-                setEditing(null);
-                load();
-              }}
-            >
-              Saqlash
-            </button>
-          </div>
-        </Modal>
-      ) : null}
+
+      <div className="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>O'quvchi</th>
+              <th>Guruh</th>
+              {isOwner && <th>Summa</th>}
+              <th>Holat</th>
+              <th>Amal</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payments.length === 0 ? (
+              <tr><td colSpan={isOwner ? 6 : 5} className="py-8 text-center text-white/40">
+                {loading ? "Yuklanmoqda..." : "To'lovlar topilmadi"}
+              </td></tr>
+            ) : (
+              payments.map((p, i) => (
+                <tr key={p.id}>
+                  <td>{i + 1}</td>
+                  <td>{p.full_name}</td>
+                  <td className="text-white/60">{p.group_name || "—"}</td>
+                  {isOwner && <td>{(p.amount || 0).toLocaleString()} so'm</td>}
+                  <td>
+                    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${p.paid ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"}`}>
+                      {p.paid ? "To'langan" : "Qarzdor"}
+                    </span>
+                  </td>
+                  <td>
+                    <button className={`btn text-xs ${p.paid ? "btn-danger" : "btn-primary"}`} onClick={() => togglePaid(p)}>
+                      {p.paid ? "Qarz qilish" : "To'landi"}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </PageShell>
   );
 }
