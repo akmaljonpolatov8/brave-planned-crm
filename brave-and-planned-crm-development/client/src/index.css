@@ -254,3 +254,25 @@ p, button, input, select, textarea, td, th { font-size: 1rem; }
   @apply glass rounded-xl;
   border: 1px solid var(--border);
 }
+
+
+
+/* Responsive grids for dashboard */
+@media (max-width: 1024px) {
+  .stats-responsive { grid-template-columns: repeat(2, 1fr) !important; }
+  .bottom-grid-responsive { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 640px) {
+  .stats-responsive { grid-template-columns: 1fr !important; }
+}
+
+/* Nav link hover effect */
+.nav-link-hover:hover {
+  background: rgba(255, 214, 98, 0.1) !important;
+}
+
+/* Pulse animation for skeleton */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

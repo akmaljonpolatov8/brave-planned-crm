@@ -2,40 +2,44 @@ import { useCallback, useEffect, useState } from "react";
 import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 
+const months = ['YAN','FEV','MAR','APR','MAY','IYN','IYL','AVG','SEP','OKT','NOY','DEK'];
+const dayNames = ['Yak','Du','Se','Chor','Pay','Jum','Shan'];
+
+function formatDate() {
+  const now = new Date();
+  return `${now.getFullYear()} M${months[now.getMonth()]}${now.getDate().toString().padStart(2,'0')}, ${dayNames[now.getDay()]}`;
+}
+
+function formatRevenue(value: number) {
+  if (value >= 1_000_000) return (value / 1_000_000).toFixed(1) + 'M';
+  if (value >= 1_000) return (value / 1_000).toFixed(0) + 'K';
+  return value.toLocaleString();
+}
+
 type DashboardData = {
-  topStats?: {
-    students?: number;
-    groups?: number;
-    teachers?: number;
-    revenue?: number | null;
-    unpaid?: number;
-    studentsDelta?: number;
-  };
-  lastPayments?: Array<{
-    full_name: string;
-    group_name?: string | null;
-    amount: number;
-    paid: number;
-  }>;
-  groupStatus?: Array<{
-    id: number;
-    name: string;
-    total?: number;
-    present_today?: number;
-  }>;
-  todayLessons?: Array<{
-    id?: number;
-    name: string;
-    time?: string | null;
-    marked?: boolean;
-    status?: string;
-  }>;
+  students: number;
+  groups: number;
+  teachers: number;
+  revenue: number;
+  debtors: number;
+  studentsDelta: number;
+  lastPayments: Array<{ full_name: string; group_name: string; amount: number; paid: number }>;
+  groupStatus: Array<{ name: string; enrolled: number; capacity: number }>;
+  todayLessons: Array<{ name: string; time: string; marked: boolean }>;
 };
 
-function formatNumber(n: number) {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000) return (n / 1_000).toFixed(0) + 'K';
-  return n.toLocaleString();
+function Skeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div style={{ height: '120px', borderRadius: '16px', background: 'rgba(255,255,255,0.04)', animation: 'pulse 1.5s infinite' }} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+        {[1,2,3,4].map(i => (
+          <div key={i} style={{ height: '130px', borderRadius: '16px', background: 'rgba(255,255,255,0.04)', animation: 'pulse 1.5s infinite' }} />
+        ))}
+      </div>
+      <div style={{ height: '250px', borderRadius: '16px', background: 'rgba(255,255,255,0.04)', animation: 'pulse 1.5s infinite' }} />
+    </div>
+  );
 }
 
 export function DashboardPage() {
@@ -43,109 +47,146 @@ export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadDashboard = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get("/dashboard");
-      setData(response.data);
+      const res = await api.get("/dashboard");
+      const d = res.data;
+      setData({
+        students: d.topStats?.students ?? 0,
+        groups: d.topStats?.groups ?? 0,
+        teachers: d.topStats?.teachers ?? 0,
+        revenue: d.topStats?.revenue ?? 0,
+        debtors: d.topStats?.unpaid ?? 0,
+        studentsDelta: d.topStats?.studentsDelta ?? 0,
+        lastPayments: d.lastPayments ?? [],
+        groupStatus: (d.groupStatus ?? []).map((g: any) => ({
+          name: g.name,
+          enrolled: g.present_today ?? g.enrolled ?? 0,
+          capacity: g.total ?? g.capacity ?? 30,
+        })),
+        todayLessons: (d.todayLessons ?? []).map((l: any) => ({
+          name: l.name,
+          time: l.time || l.start_time || '',
+          marked: l.marked ?? false,
+        })),
+      });
     } catch {
-      // silently fail
+      setData(null);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+  useEffect(() => { load(); }, [load]);
 
   const isOwner = user?.role === 'owner';
-  const stats = data?.topStats;
+
+  if (loading) return <Skeleton />;
+
+  const cardStyle: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,214,98,0.12)',
+    borderRadius: '16px',
+    padding: '24px',
+  };
+
+  const sectionTitle: React.CSSProperties = {
+    color: '#FFD662',
+    fontSize: '12px',
+    letterSpacing: '1.5px',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    marginBottom: '16px',
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[var(--gold)]">Dashboard</h1>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-[var(--text-muted)]">{user?.role}</span>
-          <div className="h-8 w-8 rounded-full bg-[var(--bg-card2)] flex items-center justify-center text-xs font-bold text-[var(--gold)]">
-            {user?.full_name?.charAt(0) || 'U'}
-          </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Welcome Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(255,214,98,0.12), rgba(255,214,98,0.04))',
+        border: '1px solid rgba(255,214,98,0.2)',
+        borderRadius: '16px',
+        padding: '28px 32px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+      }}>
+        <div>
+          <h1 style={{ color: '#FFD662', fontSize: '32px', fontWeight: 700, margin: 0 }}>
+            Xush kelibsiz, {user?.full_name || user?.username}! 👋
+          </h1>
+          <p style={{ color: 'rgba(255,255,255,0.55)', marginTop: '8px', fontSize: '15px' }}>
+            Bugungi holat va ko'rsatkichlar
+          </p>
+        </div>
+        <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '14px' }}>{formatDate()}</span>
+      </div>
+
+      {/* Stats Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }} className="stats-responsive">
+        <div style={cardStyle}>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '14px', marginBottom: '12px' }}>Jami o'quvchilar</p>
+          <p style={{ color: '#FFD662', fontSize: '48px', fontWeight: 700, lineHeight: 1 }}>{data?.students ?? 0}</p>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', marginTop: '4px' }}>Bu oy +{data?.studentsDelta ?? 0} ta</p>
+        </div>
+        <div style={cardStyle}>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '14px', marginBottom: '12px' }}>Faol guruhlar</p>
+          <p style={{ color: '#FFD662', fontSize: '48px', fontWeight: 700, lineHeight: 1 }}>{data?.groups ?? 0}</p>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', marginTop: '4px' }}>{data?.teachers ?? 0} o'qituvchi</p>
+        </div>
+        <div style={cardStyle}>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '14px', marginBottom: '12px' }}>Daromad (oy)</p>
+          <p style={{ color: '#FFD662', fontSize: '48px', fontWeight: 700, lineHeight: 1 }}>
+            {isOwner ? formatRevenue(data?.revenue ?? 0) : '—'}
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', marginTop: '4px' }}>so'm</p>
+        </div>
+        <div style={cardStyle}>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '14px', marginBottom: '12px' }}>Qarzdorlar</p>
+          <p style={{ color: (data?.debtors ?? 0) > 0 ? '#f87171' : '#FFD662', fontSize: '48px', fontWeight: 700, lineHeight: 1 }}>
+            {data?.debtors ?? 0}
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', marginTop: '4px' }}>15-dan keyin</p>
         </div>
       </div>
 
-      {/* Stat Cards */}
-      {!loading && (
-        <div className="stats-grid">
-          <div className="stat-card bp-fadeup bp-delay-0">
-            <p className="stat-title">Jami o'quvchilar</p>
-            <p className="stat-value" style={{ color: '#FFD662' }}>{stats?.students ?? 0}</p>
-            <p className="stat-sub">+{stats?.studentsDelta ?? 0} bu oy</p>
-          </div>
-          <div className="stat-card bp-fadeup bp-delay-1">
-            <p className="stat-title">Faol guruhlar</p>
-            <p className="stat-value" style={{ color: '#a78bfa' }}>{stats?.groups ?? 0}</p>
-            <p className="stat-sub">{stats?.teachers ?? 0} ta o'qituvchi</p>
-          </div>
-          {isOwner && (
-            <div className="stat-card bp-fadeup bp-delay-2">
-              <p className="stat-title">Daromad (oy)</p>
-              <p className="stat-value" style={{ color: '#4ade80' }}>{formatNumber(stats?.revenue ?? 0)}</p>
-              <p className="stat-sub">so'm</p>
-            </div>
-          )}
-          <div className="stat-card bp-fadeup bp-delay-3">
-            <p className="stat-title">Qarzdorlar</p>
-            <p className="stat-value" style={{ color: '#f87171' }}>{stats?.unpaid ?? 0}</p>
-            <p className="stat-sub">15-dan keyin</p>
-          </div>
-        </div>
-      )}
-
-      {/* Loading skeleton */}
-      {loading && (
-        <div className="stats-grid">
-          {[1,2,3,4].map(i => (
-            <div key={i} className="stat-card animate-pulse">
-              <div className="h-3 w-24 rounded bg-white/10 mb-4" />
-              <div className="h-10 w-16 rounded bg-white/10 mb-3" />
-              <div className="h-3 w-20 rounded bg-white/10" />
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Oxirgi to'lovlar */}
-      {!loading && (
-        <div className="bp-panel p-0 overflow-hidden bp-fadeup bp-delay-4">
-          <div className="px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-            <h2 className="text-base font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-              Oxirgi to'lovlar
-            </h2>
-          </div>
-          <table className="w-full">
+      <div style={cardStyle}>
+        <h2 style={sectionTitle as any}>OXIRGI TO'LOVLAR</h2>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', fontSize: '14px', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
-                <th className="bp-th">O'quvchi</th>
-                <th className="bp-th">Guruh</th>
-                <th className="bp-th">Summa</th>
-                <th className="bp-th">Holat</th>
+              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255,255,255,0.4)' }}>O'quvchi</th>
+                <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255,255,255,0.4)' }}>Guruh</th>
+                <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255,255,255,0.4)' }}>Summa</th>
+                <th style={{ padding: '10px 16px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', color: 'rgba(255,255,255,0.4)' }}>Holat</th>
               </tr>
             </thead>
             <tbody>
               {(data?.lastPayments || []).length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="bp-td text-center" style={{ color: 'var(--text-muted)' }}>
+                  <td colSpan={4} style={{ padding: '24px', textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>
                     Hozircha to'lovlar yo'q
                   </td>
                 </tr>
               ) : (
-                (data?.lastPayments || []).map((p, i) => (
-                  <tr key={i} style={{ borderTop: '1px solid rgba(255,214,98,0.06)' }}>
-                    <td className="bp-td font-medium">{p.full_name}</td>
-                    <td className="bp-td" style={{ color: 'var(--text-muted)' }}>{p.group_name || '—'}</td>
-                    <td className="bp-td">{(p.amount || 0).toLocaleString()}</td>
-                    <td className="bp-td">
-                      <span className={`bp-badge ${p.paid ? 'bp-badge-tolangan' : 'bp-badge-qarzdor'}`}>
+                (data?.lastPayments || []).slice(0, 5).map((p, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>{p.full_name}</td>
+                    <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.6)' }}>{p.group_name || '—'}</td>
+                    <td style={{ padding: '12px 16px', color: 'rgba(255,255,255,0.8)' }}>
+                      {isOwner ? (p.amount || 0).toLocaleString() : '—'}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        padding: '4px 12px', borderRadius: '20px',
+                        fontSize: '12px', fontWeight: 600,
+                        background: p.paid ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                        color: p.paid ? '#4ade80' : '#f87171',
+                      }}>
                         {p.paid ? "To'langan" : "Qarzdor"}
                       </span>
                     </td>
@@ -155,64 +196,60 @@ export function DashboardPage() {
             </tbody>
           </table>
         </div>
-      )}
+      </div>
 
-      {/* Guruhlar holati + Bugungi darslar */}
-      {!loading && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Guruhlar holati */}
-          <div className="bp-panel p-5 bp-fadeup bp-delay-5">
-            <h2 className="text-base font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
-              Guruhlar holati
-            </h2>
+      {/* Bottom Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }} className="bottom-grid-responsive">
+        {/* Guruhlar holati */}
+        <div style={cardStyle}>
+          <h2 style={sectionTitle as any}>GURUHLAR HOLATI</h2>
+          <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
             {(data?.groupStatus || []).length === 0 ? (
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Guruhlar yo'q</p>
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Guruhlar yo'q</p>
             ) : (
-              <div className="space-y-3">
-                {(data?.groupStatus || []).slice(0, 6).map((g, i) => {
-                  const pct = g.total ? Math.round((g.present_today || 0) / g.total * 100) : 0;
-                  const barClass = pct >= 70 ? 'bp-progress-good' : pct >= 40 ? 'bp-progress-mid' : 'bp-progress-low';
-                  return (
-                    <div key={i} className="flex items-center gap-3">
-                      <span className="text-sm flex-1 truncate" style={{ color: 'var(--text-primary)' }}>{g.name}</span>
-                      <span className="text-sm font-semibold" style={{ color: 'var(--gold)' }}>
-                        {g.present_today || 0}/{g.total || 0}
-                      </span>
-                      <div className="w-24 h-2 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                        <div className={`bp-progress-fill ${barClass}`} style={{ width: `${pct}%` }} />
-                      </div>
+              (data?.groupStatus || []).map((g, i) => {
+                const pct = g.capacity > 0 ? Math.min(100, Math.round((g.enrolled / g.capacity) * 100)) : 0;
+                return (
+                  <div key={i} style={{ marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px' }}>{g.name}</span>
+                      <span style={{ color: '#FFD662', fontSize: '14px', fontWeight: 600 }}>{g.enrolled}/{g.capacity}</span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Bugungi darslar */}
-          <div className="bp-panel p-5 bp-fadeup bp-delay-5">
-            <h2 className="text-base font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>
-              Bugungi darslar
-            </h2>
-            {(data?.todayLessons || []).length === 0 ? (
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Bugun darslar yo'q</p>
-            ) : (
-              <div className="space-y-3">
-                {(data?.todayLessons || []).slice(0, 6).map((l, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{l.name}</span>
-                      {l.time && <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>— {l.time}</span>}
+                    <div style={{ background: 'rgba(255,255,255,0.08)', height: '4px', borderRadius: '2px' }}>
+                      <div style={{ background: '#FFD662', height: '4px', borderRadius: '2px', width: `${pct}%`, transition: 'width 0.7s ease' }} />
                     </div>
-                    <span className={`bp-badge ${l.marked ? 'bp-badge-tolangan' : 'bp-badge-kutilmoqda'}`}>
-                      {l.marked ? '✓ Belgilandi' : 'Kutilmoqda'}
-                    </span>
                   </div>
-                ))}
-              </div>
+                );
+              })
             )}
           </div>
         </div>
-      )}
+
+        {/* Bugungi attendance */}
+        <div style={cardStyle}>
+          <h2 style={sectionTitle as any}>BUGUNGI ATTENDANCE</h2>
+          <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+            {(data?.todayLessons || []).length === 0 ? (
+              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px' }}>Bugun darslar yo'q</p>
+            ) : (
+              (data?.todayLessons || []).map((l, i) => (
+                <div key={i} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.06)',
+                }}>
+                  <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px' }}>
+                    {l.name}{l.time ? ` – ${l.time}` : ''}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: l.marked ? '#4ade80' : '#f59e0b' }}>
+                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: l.marked ? '#4ade80' : '#f59e0b', display: 'inline-block' }} />
+                    {l.marked ? 'Belgilandi' : 'Kutilmoqda'}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
