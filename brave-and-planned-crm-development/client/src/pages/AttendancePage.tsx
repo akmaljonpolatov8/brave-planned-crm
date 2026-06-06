@@ -2,18 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../api/axios";
 import { PageShell } from "../components/PageShell";
-import type { Group, Student } from "../types";
+
+type Group = { id: number; name: string };
+type GroupStudent = { id: number; full_name: string };
 
 export function AttendancePage() {
   const [groups, setGroups] = useState<Group[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  const [groupStudents, setGroupStudents] = useState<GroupStudent[]>([]);
   const [selectedGroup, setSelectedGroup] = useState("");
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [attendance, setAttendance] = useState<
     Record<string, Record<string, "present" | "absent">>
   >({});
   const [loading, setLoading] = useState(false);
+  const [studentsLoading, setStudentsLoading] = useState(false);
 
+  // Load groups
   useEffect(() => {
     api.get("/groups").then((res) => {
       setGroups(res.data);
@@ -23,10 +27,22 @@ export function AttendancePage() {
     });
   }, []);
 
+  // Load students for selected group (from /api/groups/:id/students)
   useEffect(() => {
-    api.get("/students").then((res) => setStudents(res.data));
-  }, []);
+    if (!selectedGroup) return;
+    setStudentsLoading(true);
+    api
+      .get(`/groups/${selectedGroup}/students`)
+      .then((res) => {
+        setGroupStudents(res.data);
+      })
+      .catch(() => {
+        setGroupStudents([]);
+      })
+      .finally(() => setStudentsLoading(false));
+  }, [selectedGroup]);
 
+  // Load attendance data for the month
   useEffect(() => {
     if (!selectedGroup) return;
     setLoading(true);
@@ -49,14 +65,6 @@ export function AttendancePage() {
       })
       .finally(() => setLoading(false));
   }, [month, selectedGroup]);
-
-  const currentGroupStudents = useMemo(
-    () =>
-      students.filter(
-        (student) => String(student.group_id || "") === selectedGroup,
-      ),
-    [selectedGroup, students],
-  );
 
   const days = useMemo(() => {
     const [year, monthIndex] = month.split("-").map(Number);
@@ -117,11 +125,11 @@ export function AttendancePage() {
         />
         <div className="flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-sm text-white/70">
           <span>
-            {loading
+            {studentsLoading || loading
               ? "Yuklanmoqda..."
-              : `${currentGroupStudents.length} o'quvchi`}
+              : `${groupStudents.length} o'quvchi`}
           </span>
-          <span className="text-[#46CFB0]">Auto-save</span>
+          <span style={{ color: '#FFD662' }}>Auto-save</span>
         </div>
       </div>
 
@@ -130,21 +138,21 @@ export function AttendancePage() {
           <table className="min-w-max">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 bg-[#042424] text-left">
+                <th className="sticky left-0 z-10 bg-[#1a0f2e] text-left px-4 py-3">
                   O'quvchi
                 </th>
                 {days.map((dateValue) => (
-                  <th key={dateValue} className="text-center">
+                  <th key={dateValue} className="text-center px-1 py-3 text-xs">
                     {Number(dateValue.slice(-2))}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {currentGroupStudents.length ? (
-                currentGroupStudents.map((student) => (
+              {groupStudents.length > 0 ? (
+                groupStudents.map((student) => (
                   <tr key={student.id}>
-                    <td className="sticky left-0 z-10 bg-[#042424] whitespace-nowrap font-medium">
+                    <td className="sticky left-0 z-10 bg-[#1a0f2e] whitespace-nowrap font-medium px-4 py-2 text-sm">
                       {student.full_name}
                     </td>
                     {days.map((dateValue) => {
@@ -156,11 +164,17 @@ export function AttendancePage() {
                       return (
                         <td
                           key={`${student.id}-${dateValue}`}
-                          className="text-center"
+                          className="text-center px-1 py-1"
                         >
                           <button
                             type="button"
-                            className={`mx-auto grid h-9 w-9 place-items-center rounded-full border text-sm transition ${isPresent ? "border-[#46CFB0] bg-[#46CFB0]/20 text-[#46CFB0]" : isAbsent ? "border-[#ff6b6b] bg-[#ff6b6b]/20 text-[#ff6b6b]" : "border-white/10 bg-white/5 text-white/35 hover:border-[#46CFB0]/40 hover:text-[#46CFB0]"}`}
+                            className={`mx-auto grid h-8 w-8 place-items-center rounded-full border text-xs transition ${
+                              isPresent
+                                ? "border-green-500 bg-green-500/20 text-green-400"
+                                : isAbsent
+                                  ? "border-red-500 bg-red-500/20 text-red-400"
+                                  : "border-white/10 bg-white/5 text-white/35 hover:border-yellow-400/40 hover:text-yellow-400"
+                            }`}
                             onClick={() => toggleCell(student.id, dateValue)}
                           >
                             {isPresent ? "✓" : isAbsent ? "✕" : "•"}
@@ -176,7 +190,7 @@ export function AttendancePage() {
                     colSpan={days.length + 1}
                     className="py-10 text-center text-white/50"
                   >
-                    Bu guruhda o'quvchi topilmadi.
+                    {studentsLoading ? "Yuklanmoqda..." : "Bu guruhda o'quvchi topilmadi."}
                   </td>
                 </tr>
               )}
