@@ -15,6 +15,7 @@ const emptyForm = {
   phone: "",
   parent_phone: "",
   parent_name: "",
+  group_id: "",
   status: "active",
   notes: "",
 };
@@ -59,10 +60,31 @@ export function StudentsPage() {
     if (!form.full_name) return toast.error("F.I.Sh kiritilsin");
     try {
       if (editing?.id) {
-        await api.put(`/students/${editing.id}`, form);
+        await api.put(`/students/${editing.id}`, {
+          full_name: form.full_name,
+          phone: form.phone,
+          parent_phone: form.parent_phone,
+          parent_name: form.parent_name,
+          status: form.status,
+          notes: form.notes,
+        });
         toast.success("O'quvchi yangilandi ✓");
       } else {
-        await api.post("/students", form);
+        // Create student
+        const res = await api.post("/students", {
+          full_name: form.full_name,
+          phone: form.phone,
+          parent_phone: form.parent_phone,
+          parent_name: form.parent_name,
+          status: form.status,
+          notes: form.notes,
+        });
+        // Add to group if selected
+        if (form.group_id && res.data?.id) {
+          await api.post(`/groups/${form.group_id}/students`, {
+            student_id: res.data.id,
+          });
+        }
         toast.success("O'quvchi yaratildi ✓");
       }
       setEditing(null);
@@ -211,6 +233,18 @@ export function StudentsPage() {
               }
               placeholder="F.I.Sh"
             />
+            <select
+              className="input"
+              value={form.group_id || ""}
+              onChange={(e) =>
+                setForm((v: any) => ({ ...v, group_id: e.target.value }))
+              }
+            >
+              <option value="">Guruh tanlang</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
             <input
               className="input"
               value={form.phone || ""}
