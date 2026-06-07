@@ -18,12 +18,21 @@ export function TeachersPage() {
 
   const submit = async () => {
     if (!form.full_name) return toast.error("Ism kiritilsin");
-    if (editing?.id) await api.put(`/teachers/${editing.id}`, form);
-    else await api.post("/teachers", form);
-    toast.success("O'qituvchi saqlandi");
-    setEditing(null);
-    setForm({ full_name: "", phone: "" });
-    load();
+    try {
+      if (editing?.id) {
+        await api.put(`/teachers/${editing.id}`, form);
+        toast.success("O'qituvchi yangilandi ✓");
+      } else {
+        await api.post("/teachers", form);
+        toast.success("O'qituvchi yaratildi ✓");
+      }
+      setEditing(null);
+      setForm({ full_name: "", phone: "" });
+      load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Xatolik yuz berdi");
+      console.error("Teacher save error:", err);
+    }
   };
 
   return (

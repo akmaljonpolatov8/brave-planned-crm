@@ -99,26 +99,36 @@ export function GroupEditModal({
   };
 
   const save = async () => {
-    const payload = {
-      name: form.name,
-      teacher_id: isOwner ? (form.teacher_id || null) : undefined,
-      schedule_days: form.schedule_days.join(","),
-      start_time: form.start_time,
-      end_time: form.end_time,
-      monthly_fee: form.monthly_fee,
-      capacity: form.capacity,
-      is_active: isOwner ? form.is_active : undefined,
-    };
-
-    if (mode === "create") {
-      await api.post("/groups", payload);
-      toast.success("Guruh yaratildi");
-    } else {
-      await api.put(`/groups/${group.id}`, payload);
-      toast.success("Guruh yangilandi");
+    if (!form.name.trim()) {
+      toast.error("Guruh nomi kiritilishi shart");
+      return;
     }
-    onSaved();
-    onClose();
+
+    try {
+      const payload = {
+        name: form.name.trim(),
+        teacher_id: form.teacher_id ? Number(form.teacher_id) : null,
+        schedule_days: form.schedule_days.join(","),
+        start_time: form.start_time,
+        end_time: form.end_time,
+        monthly_fee: Number(form.monthly_fee) || 0,
+        capacity: Number(form.capacity) || 20,
+        is_active: isOwner ? form.is_active : undefined,
+      };
+
+      if (mode === "create") {
+        await api.post("/groups", payload);
+        toast.success("Guruh yaratildi ✓");
+      } else {
+        await api.put(`/groups/${group.id}`, payload);
+        toast.success("Guruh yangilandi ✓");
+      }
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Xatolik yuz berdi");
+      console.error("Group save error:", err);
+    }
   };
 
   return (

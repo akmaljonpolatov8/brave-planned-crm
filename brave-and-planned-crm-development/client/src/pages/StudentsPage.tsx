@@ -12,11 +12,11 @@ import type { Group, Student } from "../types";
 
 const emptyForm = {
   full_name: "",
-  ota_phone: "",
-  ona_phone: "",
-  telefon: "",
-  group_id: "",
+  phone: "",
+  parent_phone: "",
+  parent_name: "",
   status: "active",
+  notes: "",
 };
 
 const splitGroupNames = (value: unknown) => {
@@ -57,12 +57,21 @@ export function StudentsPage() {
 
   const save = async () => {
     if (!form.full_name) return toast.error("F.I.Sh kiritilsin");
-    if (editing?.id) await api.put(`/students/${editing.id}`, form);
-    else await api.post("/students", form);
-    toast.success("O'quvchi saqlandi");
-    setEditing(null);
-    setForm(emptyForm);
-    load();
+    try {
+      if (editing?.id) {
+        await api.put(`/students/${editing.id}`, form);
+        toast.success("O'quvchi yangilandi ✓");
+      } else {
+        await api.post("/students", form);
+        toast.success("O'quvchi yaratildi ✓");
+      }
+      setEditing(null);
+      setForm(emptyForm);
+      load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Xatolik yuz berdi");
+      console.error("Student save error:", err);
+    }
   };
 
   return (
@@ -106,10 +115,9 @@ export function StudentsPage() {
                 <td>{index + 1}</td>
                 <td>{student.full_name}</td>
                 <td>
-                  {student.ota_phone ||
-                    student.ona_phone ||
-                    student.telefon ||
-                    "-"}
+                  {student.phone ||
+                    student.parent_phone ||
+                    "—"}
                 </td>
                 <td>
                   <div className="flex flex-wrap gap-2">
@@ -146,7 +154,14 @@ export function StudentsPage() {
                       className="btn-secondary"
                       onClick={() => {
                         setEditing(student);
-                        setForm(student);
+                        setForm({
+                          full_name: student.full_name || "",
+                          phone: (student as any).phone || "",
+                          parent_phone: (student as any).parent_phone || "",
+                          parent_name: (student as any).parent_name || "",
+                          status: student.status || "active",
+                          notes: (student as any).notes || "",
+                        });
                       }}
                     >
                       <span className="inline-flex items-center gap-2">
@@ -212,27 +227,27 @@ export function StudentsPage() {
             </select>
             <input
               className="input"
-              value={form.ota_phone || ""}
+              value={form.phone || ""}
               onChange={(e) =>
-                setForm((v: any) => ({ ...v, ota_phone: e.target.value }))
+                setForm((v: any) => ({ ...v, phone: e.target.value }))
               }
-              placeholder="Ota telefoni"
+              placeholder="Telefon raqami"
             />
             <input
               className="input"
-              value={form.ona_phone || ""}
+              value={form.parent_phone || ""}
               onChange={(e) =>
-                setForm((v: any) => ({ ...v, ona_phone: e.target.value }))
+                setForm((v: any) => ({ ...v, parent_phone: e.target.value }))
               }
-              placeholder="Ona telefoni"
+              placeholder="Ota-ona telefoni"
             />
             <input
               className="input"
-              value={form.telefon || ""}
+              value={form.parent_name || ""}
               onChange={(e) =>
-                setForm((v: any) => ({ ...v, telefon: e.target.value }))
+                setForm((v: any) => ({ ...v, parent_name: e.target.value }))
               }
-              placeholder="Telefon"
+              placeholder="Ota-ona ismi"
             />
             <select
               className="input"
