@@ -211,20 +211,6 @@ export function StudentsPage() {
               }
               placeholder="F.I.Sh"
             />
-            <select
-              className="input"
-              value={form.group_id || ""}
-              onChange={(e) =>
-                setForm((v: any) => ({ ...v, group_id: e.target.value }))
-              }
-            >
-              <option value="">Guruh tanlang</option>
-              {groups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
             <input
               className="input"
               value={form.phone || ""}
@@ -258,8 +244,16 @@ export function StudentsPage() {
             >
               <option value="active">Faol</option>
               <option value="inactive">Nofaol</option>
-              <option value="debt">Qarzdor</option>
+              <option value="frozen">Muzlatilgan</option>
             </select>
+            <input
+              className="input"
+              value={form.notes || ""}
+              onChange={(e) =>
+                setForm((v: any) => ({ ...v, notes: e.target.value }))
+              }
+              placeholder="Izoh (ixtiyoriy)"
+            />
           </div>
           <div className="mt-5 flex justify-end gap-3">
             <button className="btn-secondary" onClick={() => setEditing(null)}>
