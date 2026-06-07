@@ -16,11 +16,13 @@ export function TeachersPage() {
   const load = () => api.get("/teachers").then((res) => setTeachers(res.data));
   useEffect(() => { load(); }, []);
 
+  const isEditMode = editing !== null && editing.id > 0;
+
   const submit = async () => {
     if (!form.full_name) return toast.error("Ism kiritilsin");
     try {
-      if (editing?.id) {
-        await api.put(`/teachers/${editing.id}`, form);
+      if (isEditMode) {
+        await api.put(`/teachers/${editing!.id}`, form);
         toast.success("O'qituvchi yangilandi ✓");
       } else {
         await api.post("/teachers", form);

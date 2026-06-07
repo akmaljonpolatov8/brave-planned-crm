@@ -56,11 +56,13 @@ export function StudentsPage() {
     load();
   }, [search]);
 
+  const isEditMode = editing !== null && editing.id > 0;
+
   const save = async () => {
     if (!form.full_name) return toast.error("F.I.Sh kiritilsin");
     try {
-      if (editing?.id) {
-        await api.put(`/students/${editing.id}`, {
+      if (isEditMode) {
+        await api.put(`/students/${editing!.id}`, {
           full_name: form.full_name,
           phone: form.phone,
           parent_phone: form.parent_phone,
