@@ -101,15 +101,16 @@ router.post('/', roleCheck('owner', 'manager'), async (req, res) => {
   }
 
   try {
+    const rawTeacherId = teacher_id ?? teacherId ?? null;
     const group = await prisma.group.create({
       data: {
         name,
-        teacherId: teacher_id ?? teacherId ?? null,
+        teacherId: rawTeacherId ? Number(rawTeacherId) : null,
         scheduleDays: schedule_days ?? scheduleDays ?? null,
         startTime: start_time ?? startTime ?? null,
         endTime: end_time ?? endTime ?? null,
-        monthlyFee: monthly_fee ?? monthlyFee ?? 0,
-        capacity: capacity ?? 20,
+        monthlyFee: Number(monthly_fee ?? monthlyFee ?? 0),
+        capacity: Number(capacity ?? 20),
         isActive: is_active !== undefined ? Boolean(is_active) : isActive !== undefined ? Boolean(isActive) : true
       }
     });
@@ -144,16 +145,17 @@ router.put('/:id', roleCheck('owner', 'manager'), async (req, res) => {
       return res.status(404).json({ message: 'Group not found' });
     }
 
+    const rawTeacherId = teacher_id !== undefined ? teacher_id : teacherId !== undefined ? teacherId : undefined;
     const group = await prisma.group.update({
       where: { id: Number(req.params.id) },
       data: {
         name: name || existing.name,
-        teacherId: teacher_id !== undefined ? teacher_id : teacherId !== undefined ? teacherId : existing.teacherId,
+        teacherId: rawTeacherId !== undefined ? (rawTeacherId ? Number(rawTeacherId) : null) : existing.teacherId,
         scheduleDays: schedule_days !== undefined ? schedule_days : scheduleDays !== undefined ? scheduleDays : existing.scheduleDays,
         startTime: start_time !== undefined ? start_time : startTime !== undefined ? startTime : existing.startTime,
         endTime: end_time !== undefined ? end_time : endTime !== undefined ? endTime : existing.endTime,
-        monthlyFee: monthly_fee !== undefined ? monthly_fee : monthlyFee !== undefined ? monthlyFee : existing.monthlyFee,
-        capacity: capacity !== undefined ? capacity : existing.capacity,
+        monthlyFee: monthly_fee !== undefined ? Number(monthly_fee) : monthlyFee !== undefined ? Number(monthlyFee) : existing.monthlyFee,
+        capacity: capacity !== undefined ? Number(capacity) : existing.capacity,
         isActive: is_active !== undefined ? Boolean(is_active) : isActive !== undefined ? Boolean(isActive) : existing.isActive
       }
     });
