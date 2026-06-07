@@ -1,0 +1,3 @@
+## 2026-06-07 - [Standardizing Modal Accessibility]
+**Learning:** The application's `Modal` component was a simple wrapper without essential accessibility features like ARIA roles, `Escape` key handling, or backdrop click closure. In a dark-themed CRM with many interactive elements, these standard patterns are critical for an intuitive experience and screen reader support.
+**Action:** Always implement `role="dialog"`, `aria-modal="true"`, and `aria-labelledby` for modals. Use a `useEffect` hook for `Escape` key listeners and ensure backdrop clicks are handled with `stopPropagation` on the content container to prevent accidental closures.
