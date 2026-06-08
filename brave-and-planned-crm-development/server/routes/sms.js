@@ -1,79 +1,97 @@
 import express from 'express';
 import prisma from '../lib/prisma.js';
 import { roleCheck } from '../middleware/roleCheck.js';
-import { sendSMS } from '../services/smsService.js';
+import { sendSMS, getParentPhone, testConnection } from '../services/smsService.js';
 
 const router = express.Router();
 
-async function sendAndLog(studentId, phone, message, month) {
-  try {
-    const result = await sendSMS(phone, message);
-    const status = result?.success === false ? 'failed' : 'sent';
+// Test SMS connection
+router.get('/test', async (req, res) => {
+  const result = await testConnection();
+  res.json(result);
+});
 
-    await prisma.smsLog.create({
-      data: {
-        studentId: studentId || null,
-        phone,
-        message,
-        month: month || null,
-        status
-      }
-    });
-
-    return { ...result, status };
-  } catch (err) {
-    await prisma.smsLog.create({
-      data: {
-        studentId: studentId || null,
-        phone,
-        message,
-        month: month || null,
-        status: 'failed'
-      }
-    });
-    return { success: false, status: 'failed' };
-  }
-}
-
+// Send SMS
 router.post('/send', roleCheck('owner', 'manager'), async (req, res) => {
-  const { phone, phones, groupId, message } = req.body;
+  const { phone, phones, groupId, message, month } = req.body;
+
   if (!message || !String(message).trim()) {
     return res.status(400).json({ message: "Xabar matni bo'sh" });
   }
 
+  const currentMonth = month || new Date().toISOString().slice(0, 7);
+
   try {
     const recipients = [];
 
-    if (Array.isArray(phones)) {
-      phones.forEach(item => item && recipients.push(String(item)));
+    if (Array.isArray(phones) && phones.length > 0) {
+      phones.forEach(item => item && recipients.push({ phone: String(item), studentId: null }));
     } else if (phone) {
-      recipients.push(String(phone));
+      recipients.push({ phone: String(phone), studentId: null });
     } else if (groupId) {
-      const students = await prisma.groupStudent.findMany({
+      // Get students in group
+      const groupStudents = await prisma.groupStudent.findMany({
         where: { groupId: Number(groupId), isActive: true },
         include: { student: true }
       });
-      students.forEach(gs => {
-        const p = gs.student.parentPhone || gs.student.phone;
-        if (p) recipients.push(p);
+      groupStudents.forEach(gs => {
+        const p = getParentPhone(gs.student);
+        if (p) recipients.push({ phone: p, studentId: gs.student.id });
+      });
+    } else {
+      // All students (debtors mode)
+      const students = await prisma.student.findMany({
+        select: { id: true, phone: true, parentPhone: true }
+      });
+      students.forEach(s => {
+        const p = getParentPhone(s);
+        if (p) recipients.push({ phone: p, studentId: s.id });
       });
     }
 
-    const uniqueRecipients = [...new Set(recipients)];
+    // Remove duplicates by phone
+    const uniqueMap = new Map();
+    recipients.forEach(r => {
+      if (!uniqueMap.has(r.phone)) uniqueMap.set(r.phone, r);
+    });
+    const uniqueRecipients = [...uniqueMap.values()];
+
     let sent = 0;
+    let failed = 0;
 
     for (const recipient of uniqueRecipients) {
-      await sendAndLog(null, recipient, String(message), null);
-      sent += 1;
+      const result = await sendSMS(recipient.phone, String(message));
+      const status = result.success ? 'sent' : 'failed';
+
+      // Log to database
+      await prisma.smsLog.create({
+        data: {
+          studentId: recipient.studentId,
+          phone: recipient.phone,
+          message: String(message),
+          month: currentMonth,
+          status,
+        }
+      });
+
+      if (result.success) sent++;
+      else failed++;
     }
 
-    return res.json({ success: true, count: sent });
+    return res.json({
+      success: true,
+      count: sent,
+      failed,
+      total: uniqueRecipients.length,
+      message: `${sent} ta SMS yuborildi${failed > 0 ? `, ${failed} ta xato` : ''}`
+    });
   } catch (err) {
     console.error('Send SMS error:', err);
-    res.status(500).json({ message: 'Server xatolik' });
+    res.status(500).json({ message: 'Server xatolik: ' + err.message });
   }
 });
 
+// Send to debtors (auto or manual)
 router.post('/send-to-debtors', roleCheck('owner', 'manager'), async (req, res) => {
   const month = req.body.month || new Date().toISOString().slice(0, 7);
 
@@ -86,21 +104,51 @@ router.post('/send-to-debtors', roleCheck('owner', 'manager'), async (req, res) 
     });
 
     let sent = 0;
+    let skipped = 0;
+    let failed = 0;
+
     for (const debtor of debtors) {
-      const phone = debtor.student.parentPhone || debtor.student.phone;
-      if (!phone) continue;
+      const phone = getParentPhone(debtor.student);
+      if (!phone) { skipped++; continue; }
+
+      // Check if already sent this month
+      const existing = await prisma.smsLog.findFirst({
+        where: { studentId: debtor.student.id, month, status: 'sent' }
+      });
+      if (existing) { skipped++; continue; }
+
       const message = `Hurmatli ota-ona, ${debtor.student.fullName}ning ${month} oyi uchun to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.`;
-      await sendAndLog(debtor.student.id, phone, message, month);
-      sent += 1;
+
+      const result = await sendSMS(phone, message);
+
+      await prisma.smsLog.create({
+        data: {
+          studentId: debtor.student.id,
+          phone,
+          message,
+          month,
+          status: result.success ? 'sent' : 'failed',
+        }
+      });
+
+      if (result.success) sent++;
+      else failed++;
     }
 
-    return res.json({ success: true, count: sent });
+    return res.json({
+      success: true,
+      count: sent,
+      skipped,
+      failed,
+      message: `${sent} ta SMS yuborildi, ${skipped} ta o'tkazildi`
+    });
   } catch (err) {
     console.error('Send to debtors error:', err);
     res.status(500).json({ message: 'Server xatolik' });
   }
 });
 
+// Get SMS logs
 router.get('/logs', async (req, res) => {
   try {
     const logs = await prisma.smsLog.findMany({

@@ -1,67 +1,110 @@
-import axios from 'axios';
+const AUTH_BASE = "https://api-auth.textup.uz";
+const SMS_BASE = "https://sms-api.textup.uz";
 
-const ESKIZ_API = 'https://notify.eskiz.uz';
-let eskizToken = null;
-let tokenExpiry = null;
+// Cache token in memory
+let cachedToken = null;
+let tokenExpiry = 0;
 
-export function normalizePhone(raw) {
+export async function getTextUpToken() {
+  if (cachedToken && Date.now() < tokenExpiry) {
+    return cachedToken;
+  }
+
+  const email = process.env.TEXTUP_EMAIL;
+  const password = process.env.TEXTUP_PASSWORD;
+
+  if (!email || !password) {
+    throw new Error("TEXTUP_EMAIL va TEXTUP_PASSWORD env variable'lar sozlanmagan");
+  }
+
+  const res = await fetch(`${AUTH_BASE}/v1/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`TextUP login failed: ${err}`);
+  }
+
+  const data = await res.json();
+  cachedToken = data.accessToken;
+  tokenExpiry = Date.now() + 50 * 60 * 1000; // 50 minutes
+  console.log("✅ TextUP token obtained");
+  return cachedToken;
+}
+
+export function cleanPhone(raw) {
   if (!raw) return null;
-  let phone = String(raw).replace(/[\s\-\(\)]/g, '');
-  // Remove leading + if present for normalization
-  if (phone.startsWith('+')) phone = phone.slice(1);
-  // Ensure it starts with country code
-  if (phone.startsWith('998') && phone.length === 12) return '+' + phone;
-  if (phone.startsWith('7') && phone.length === 11) return '+' + phone;
-  if (phone.length === 9 && /^\d+$/.test(phone)) return '+998' + phone;
-  return '+' + phone;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("998") && digits.length === 12) return `+${digits}`;
+  if (digits.startsWith("7") && digits.length === 11) return `+${digits}`;
+  if (digits.length === 9) return `+998${digits}`;
+  return `+${digits}`;
 }
 
 export function getParentPhone(student) {
-  return student.ota_phone || student.ona_phone || student.telefon || null;
+  return student.parentPhone || student.phone || null;
 }
 
-export async function getEskizToken() {
-  // Return cached token if valid
-  if (eskizToken && tokenExpiry && Date.now() < tokenExpiry) {
-    return eskizToken;
+export async function sendSMS(phone, message) {
+  const userId = process.env.TEXTUP_USER_ID;
+  const nicknameId = process.env.TEXTUP_NICKNAME_ID;
+
+  if (!userId) {
+    console.error("❌ TEXTUP_USER_ID not set");
+    return { success: false, error: "TEXTUP_USER_ID not configured" };
+  }
+
+  const cleanedPhone = cleanPhone(phone);
+  if (!cleanedPhone) {
+    return { success: false, error: "Invalid phone number" };
   }
 
   try {
-    const response = await axios.post(`${ESKIZ_API}/api/auth/login`, {
-      email: process.env.ESKIZ_EMAIL,
-      password: process.env.ESKIZ_PASSWORD
-    });
+    const token = await getTextUpToken();
 
-    eskizToken = response.data.data.token;
-    // Token valid for 30 days, cache for 25 days
-    tokenExpiry = Date.now() + (25 * 24 * 60 * 60 * 1000);
+    const body = {
+      message,
+      userId,
+      name: `CRM-${Date.now()}`,
+      recipients: [cleanedPhone],
+    };
 
-    console.log('✅ Eskiz token obtained');
-    return eskizToken;
-  } catch (err) {
-    console.error('❌ Error getting Eskiz token:', err.message);
-    throw err;
-  }
-}
+    if (nicknameId) {
+      body.nicknameId = nicknameId;
+    }
 
-export async function sendSMS(phoneNumber, message) {
-  try {
-    const token = await getEskizToken();
-
-    const response = await axios.post(`${ESKIZ_API}/api/message/sms/send`, {
-      mobile_phone: phoneNumber,
-      message: message,
-      from: '4546'
-    }, {
+    const res = await fetch(`${SMS_BASE}/v1/send`, {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
     });
 
-    console.log(`✅ SMS sent to ${phoneNumber}`);
-    return response.data;
+    const result = await res.json();
+
+    if (!res.ok) {
+      console.error(`❌ TextUP send error to ${cleanedPhone}:`, result);
+      return { success: false, error: JSON.stringify(result) };
+    }
+
+    console.log(`✅ SMS sent to ${cleanedPhone}, smsId: ${result.smsId}`);
+    return { success: true, smsId: result.smsId };
   } catch (err) {
-    console.error(`❌ Error sending SMS to ${phoneNumber}:`, err.message);
-    throw err;
+    console.error(`❌ SMS error to ${cleanedPhone}:`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+export async function testConnection() {
+  try {
+    await getTextUpToken();
+    return { connected: true };
+  } catch (err) {
+    return { connected: false, error: err.message };
   }
 }
