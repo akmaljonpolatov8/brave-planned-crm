@@ -5,10 +5,39 @@ import { sendSMS, getParentPhone, testConnection } from '../services/smsService.
 
 const router = express.Router();
 
-// Test SMS connection
+// Test SMS connection (GET - just check token)
 router.get('/test', async (req, res) => {
   const result = await testConnection();
   res.json(result);
+});
+
+// Test SMS send (POST - actually sends SMS)
+router.post('/test', async (req, res) => {
+  const { phone } = req.body;
+  const targetPhone = phone || '+998925725220';
+
+  try {
+    // Step 1: Test login
+    const { getTextUpToken } = await import('../services/smsService.js');
+    const token = await getTextUpToken();
+
+    if (!token) {
+      return res.json({ success: false, step: 'login', error: 'Token olishda xatolik' });
+    }
+
+    // Step 2: Send test SMS
+    const result = await sendSMS(targetPhone, 'Brave and Planet CRM - test SMS ishlayapti!');
+
+    res.json({
+      success: result.success,
+      step: 'send',
+      phone: targetPhone,
+      result,
+      tokenPreview: token.slice(0, 30) + '...',
+    });
+  } catch (err) {
+    res.json({ success: false, step: 'error', error: err.message });
+  }
 });
 
 // Send SMS
