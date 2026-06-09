@@ -144,15 +144,18 @@ export function GroupEditModal({
         />
         <input
           className="input"
-          type="number"
-          value={form.monthly_fee}
-          onChange={(event) =>
+          type="text"
+          inputMode="numeric"
+          value={form.monthly_fee || ""}
+          onFocus={(e) => e.target.select()}
+          onChange={(event) => {
+            const raw = event.target.value.replace(/\D/g, "");
             setForm((current) => ({
               ...current,
-              monthly_fee: Number(event.target.value),
-            }))
-          }
-          placeholder="Oylik to'lov"
+              monthly_fee: raw ? Number(raw) : 0,
+            }));
+          }}
+          placeholder="Oylik to'lov (so'm)"
         />
         <input
           className="input"
@@ -175,14 +178,17 @@ export function GroupEditModal({
         />
         <input
           className="input"
-          type="number"
-          value={form.capacity}
-          onChange={(event) =>
+          type="text"
+          inputMode="numeric"
+          value={form.capacity || ""}
+          onFocus={(e) => e.target.select()}
+          onChange={(event) => {
+            const raw = event.target.value.replace(/\D/g, "");
             setForm((current) => ({
               ...current,
-              capacity: Number(event.target.value),
-            }))
-          }
+              capacity: raw ? Number(raw) : 20,
+            }));
+          }}
           placeholder="Sig'im"
         />
         {isOwner ? (
