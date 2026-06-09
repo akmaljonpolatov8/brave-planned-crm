@@ -319,3 +319,52 @@ p, button, input, select, textarea, td, th { font-size: 1rem; }
   .status-btn { font-size: 13px; padding: 10px 8px; }
   .student-card { padding: 16px 20px; }
 }
+
+
+
+/* ===== MOBILE UX IMPROVEMENTS ===== */
+
+/* Prevent iOS Safari zoom on input focus */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* Touch feedback on buttons */
+button:active {
+  opacity: 0.8;
+  transform: scale(0.97);
+}
+
+/* Smooth transitions */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Attendance: 2x2 grid on mobile */
+@media (max-width: 500px) {
+  .status-buttons {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .status-btn {
+    min-height: 52px !important;
+    padding: 14px 8px !important;
+  }
+}
+
+/* Tables horizontal scroll on mobile */
+@media (max-width: 768px) {
+  .table-shell {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-shell table {
+    min-width: 600px;
+  }
+}
+
+/* Safe area padding for notch devices */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .save-bar {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+  }
+}
