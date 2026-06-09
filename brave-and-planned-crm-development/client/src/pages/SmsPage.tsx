@@ -151,7 +151,18 @@ export function SmsPage() {
           )}
 
           {/* Message textarea */}
-          <textarea className="input" style={{ minHeight: '100px', resize: 'vertical', marginBottom: '8px' }} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Xabar matni..." />
+          <textarea
+            className="input"
+            style={{ minHeight: '100px', resize: 'vertical', marginBottom: '4px' }}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Xabar matni..."
+            aria-describedby="sms-counter"
+          />
+          <div id="sms-counter" aria-live="polite" style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '12px' }}>
+            <span>Belgilar soni: {message.length}</span>
+            <span>SMS qismlari: {Math.ceil(message.length / 160) || 1}</span>
+          </div>
 
           {/* Templates */}
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
