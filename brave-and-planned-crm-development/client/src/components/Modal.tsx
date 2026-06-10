@@ -18,11 +18,21 @@ export function Modal({
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  // Prevent body scroll when modal is open
+  // Prevent body scroll and handle Escape key
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [onClose]);
 
   return (
     <div
@@ -43,6 +53,9 @@ export function Modal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
         style={{
           background: '#1a0f2e',
           border: isMobile ? 'none' : '1px solid rgba(255,214,98,0.2)',
@@ -61,7 +74,10 @@ export function Modal({
           justifyContent: 'space-between',
           marginBottom: '20px',
         }}>
-          <h3 style={{ color: '#FFD662', fontSize: '18px', fontWeight: 700, margin: 0 }}>
+          <h3
+            id="modal-title"
+            style={{ color: '#FFD662', fontSize: '18px', fontWeight: 700, margin: 0 }}
+          >
             {title}
           </h3>
           <button
