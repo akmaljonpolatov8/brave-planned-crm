@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 
 export function Modal({
   title,
@@ -10,6 +10,7 @@ export function Modal({
   onClose: () => void;
 }) {
   const [isMobile, setIsMobile] = useState(false);
+  const titleId = useId();
 
   useEffect(() => {
     setIsMobile(window.innerWidth < 640);
@@ -23,6 +24,15 @@ export function Modal({
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, []);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
 
   return (
     <div
@@ -43,6 +53,9 @@ export function Modal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         style={{
           background: '#1a0f2e',
           border: isMobile ? 'none' : '1px solid rgba(255,214,98,0.2)',
@@ -61,11 +74,16 @@ export function Modal({
           justifyContent: 'space-between',
           marginBottom: '20px',
         }}>
-          <h3 style={{ color: '#FFD662', fontSize: '18px', fontWeight: 700, margin: 0 }}>
+          <h3
+            id={titleId}
+            style={{ color: '#FFD662', fontSize: '18px', fontWeight: 700, margin: 0 }}
+          >
             {title}
           </h3>
           <button
             onClick={onClose}
+            aria-label="Yopish"
+            className="hover:bg-white/10 focus:ring-2 focus:ring-[#FFD662] focus:outline-none transition-all"
             style={{
               background: 'rgba(255,255,255,0.08)',
               border: '1px solid rgba(255,255,255,0.15)',
