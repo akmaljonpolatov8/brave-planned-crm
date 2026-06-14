@@ -66,6 +66,7 @@ export function Modal({
           </h3>
           <button
             onClick={onClose}
+            aria-label="Yopish"
             style={{
               background: 'rgba(255,255,255,0.08)',
               border: '1px solid rgba(255,255,255,0.15)',

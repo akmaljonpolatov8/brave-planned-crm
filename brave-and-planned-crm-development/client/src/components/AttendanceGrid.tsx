@@ -37,12 +37,15 @@ export function AttendanceGrid({
               {days.map((day) => {
                 const date = `${month}-${String(day).padStart(2, "0")}`;
                 const status = map.get(`${student.id}-${date}`) as "present" | "absent" | undefined;
+                const label = status === "present" ? "keldi" : status === "absent" ? "kelmadi" : "belgilanmagan";
                 const color = status === "present" ? "bg-emerald-500/50" : status === "absent" ? "bg-red-500/50" : "bg-white/10";
                 return (
                   <td key={date}>
                     <button
-                      className={`h-8 w-8 rounded-lg ${color}`}
+                      className={`h-8 w-8 rounded-lg transition-all hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-brand ${color}`}
                       onClick={() => onToggle(student.id, date, status)}
+                      aria-label={`${student.full_name}, ${day}-sana: ${label}`}
+                      title={`${student.full_name}, ${day}-sana: ${label}`}
                     />
                   </td>
                 );
