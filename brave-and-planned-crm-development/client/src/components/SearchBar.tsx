@@ -10,6 +10,7 @@ export function SearchBar({
   return (
     <input
       className="input"
+      aria-label="Qidirish"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
