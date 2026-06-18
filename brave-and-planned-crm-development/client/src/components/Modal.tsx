@@ -75,6 +75,7 @@ export function Modal({
               fontSize: '14px',
               cursor: 'pointer',
             }}
+            aria-label="Yopish"
           >
             ✕
           </button>
