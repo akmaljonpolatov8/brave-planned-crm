@@ -13,8 +13,8 @@ export async function getTextUpToken() {
   const email = process.env.TEXTUP_EMAIL;
   const password = process.env.TEXTUP_PASSWORD;
 
-  if (!email || !password) {
-    throw new Error("TEXTUP_EMAIL va TEXTUP_PASSWORD env variable'lar sozlanmagan");
+  if (!email || !password || email === "your-textup-email@example.com" || email === "your@email.com") {
+    throw new Error("TEXTUP_EMAIL va TEXTUP_PASSWORD .env faylida to'g'ri sozlanmagan. Haqiqiy TextUP credentials kiriting.");
   }
 
   const res = await fetch(`${AUTH_BASE}/v1/login`, {
@@ -25,7 +25,7 @@ export async function getTextUpToken() {
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`TextUP login failed: ${err}`);
+    throw new Error(`TextUP login xatolik (${res.status}): ${err}`);
   }
 
   const data = await res.json();
@@ -52,14 +52,14 @@ export async function sendSMS(phone, message) {
   const userId = process.env.TEXTUP_USER_ID;
   const nicknameId = process.env.TEXTUP_NICKNAME_ID;
 
-  if (!userId) {
-    console.error("❌ TEXTUP_USER_ID not set");
-    return { success: false, error: "TEXTUP_USER_ID not configured" };
+  if (!userId || userId === "your-user-uuid-from-login-response") {
+    console.error("❌ TEXTUP_USER_ID not set or still has placeholder value");
+    return { success: false, error: "TEXTUP_USER_ID sozlanmagan. .env faylida to'g'ri qiymat kiriting." };
   }
 
   const cleanedPhone = cleanPhone(phone);
   if (!cleanedPhone) {
-    return { success: false, error: "Invalid phone number" };
+    return { success: false, error: "Noto'g'ri telefon raqami" };
   }
 
   try {
@@ -72,7 +72,7 @@ export async function sendSMS(phone, message) {
       recipients: [cleanedPhone],
     };
 
-    if (nicknameId) {
+    if (nicknameId && nicknameId !== "your-nickname-uuid-from-nick-names-endpoint") {
       body.nicknameId = nicknameId;
     }
 
@@ -89,7 +89,7 @@ export async function sendSMS(phone, message) {
 
     if (!res.ok) {
       console.error(`❌ TextUP send error to ${cleanedPhone}:`, result);
-      return { success: false, error: JSON.stringify(result) };
+      return { success: false, error: result?.message || JSON.stringify(result) };
     }
 
     console.log(`✅ SMS sent to ${cleanedPhone}, smsId: ${result.smsId}`);

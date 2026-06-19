@@ -139,20 +139,31 @@ router.put('/:id', roleCheck('owner', 'manager'), async (req, res) => {
 
 // Delete student
 router.delete('/:id', roleCheck('owner'), async (req, res) => {
+  const studentId = Number(req.params.id);
+
   try {
     const student = await prisma.student.findUnique({
-      where: { id: Number(req.params.id) }
+      where: { id: studentId }
     });
 
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    await prisma.student.delete({ where: { id: Number(req.params.id) } });
+    // Delete related records first to avoid foreign key constraints
+    await prisma.$transaction([
+      prisma.transfer.deleteMany({ where: { studentId } }),
+      prisma.smsLog.deleteMany({ where: { studentId } }),
+      prisma.attendance.deleteMany({ where: { studentId } }),
+      prisma.payment.deleteMany({ where: { studentId } }),
+      prisma.groupStudent.deleteMany({ where: { studentId } }),
+      prisma.student.delete({ where: { id: studentId } }),
+    ]);
+
     res.json({ message: 'Student deleted' });
   } catch (err) {
     console.error('Delete student error:', err);
-    res.status(500).json({ message: 'Server xatolik' });
+    res.status(500).json({ message: "O'quvchini o'chirishda xatolik: " + (err.message || 'Server xatolik') });
   }
 });
 

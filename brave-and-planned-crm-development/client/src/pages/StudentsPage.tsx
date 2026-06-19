@@ -206,8 +206,14 @@ export function StudentsPage() {
                       className="btn-danger"
                       onClick={async () => {
                         if (confirm("O'chirilsinmi?")) {
-                          await api.delete(`/students/${student.id}`);
-                          load();
+                          try {
+                            await api.delete(`/students/${student.id}`);
+                            toast.success("O'quvchi o'chirildi ✓");
+                            load();
+                          } catch (err: any) {
+                            toast.error(err?.response?.data?.message || "O'chirishda xatolik yuz berdi");
+                            console.error("Delete student error:", err);
+                          }
                         }
                       }}
                     >
