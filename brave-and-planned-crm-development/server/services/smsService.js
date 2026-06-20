@@ -1,9 +1,20 @@
 const AUTH_BASE = "https://api-auth.textup.uz";
 const SMS_BASE = "https://sms-api.textup.uz";
 
-// Cache token in memory
 let cachedToken = null;
 let tokenExpiry = 0;
+
+function isPlaceholder(value) {
+  const placeholders = new Set([
+    "your@email.com",
+    "your_password",
+    "your-user-uuid-from-login-response",
+    "your-nickname-uuid-from-nick-names-endpoint",
+    "your-textup-email@example.com",
+    "your-textup-password",
+  ]);
+  return !value || placeholders.has(String(value).trim());
+}
 
 export async function getTextUpToken() {
   if (cachedToken && Date.now() < tokenExpiry) {
@@ -13,8 +24,10 @@ export async function getTextUpToken() {
   const email = process.env.TEXTUP_EMAIL;
   const password = process.env.TEXTUP_PASSWORD;
 
-  if (!email || !password || email === "your-textup-email@example.com" || email === "your@email.com") {
-    throw new Error("TEXTUP_EMAIL va TEXTUP_PASSWORD .env faylida to'g'ri sozlanmagan. Haqiqiy TextUP credentials kiriting.");
+  if (isPlaceholder(email) || isPlaceholder(password)) {
+    throw new Error(
+      "TEXTUP_EMAIL va TEXTUP_PASSWORD .env faylida to'g'ri sozlanmagan. Haqiqiy TextUP login kiriting.",
+    );
   }
 
   const res = await fetch(`${AUTH_BASE}/v1/login`, {
@@ -24,20 +37,21 @@ export async function getTextUpToken() {
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`TextUP login xatolik (${res.status}): ${err}`);
+    const errText = await res.text();
+    throw new Error(`TextUP login xatolik (${res.status}): ${errText}`);
   }
 
   const data = await res.json();
   cachedToken = data.accessToken;
-  tokenExpiry = Date.now() + 50 * 60 * 1000; // 50 minutes
-  console.log("✅ TextUP token obtained");
+  tokenExpiry = Date.now() + 50 * 60 * 1000;
+  console.log("✅ TextUP token olindi");
   return cachedToken;
 }
 
 export function cleanPhone(raw) {
   if (!raw) return null;
-  const digits = raw.replace(/\D/g, "");
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return null;
   if (digits.startsWith("998") && digits.length === 12) return `+${digits}`;
   if (digits.startsWith("7") && digits.length === 11) return `+${digits}`;
   if (digits.length === 9) return `+998${digits}`;
@@ -45,16 +59,26 @@ export function cleanPhone(raw) {
 }
 
 export function getParentPhone(student) {
-  return student.parentPhone || student.phone || null;
+  if (!student) return null;
+  return student.parent_phone || student.parentPhone || student.phone || null;
+}
+
+export function isCredentialError(errorMessage = "") {
+  return /sozlanmagan|login xatolik|TEXTUP_|401|403|Unauthorized/i.test(
+    String(errorMessage),
+  );
 }
 
 export async function sendSMS(phone, message) {
   const userId = process.env.TEXTUP_USER_ID;
   const nicknameId = process.env.TEXTUP_NICKNAME_ID;
 
-  if (!userId || userId === "your-user-uuid-from-login-response") {
-    console.error("❌ TEXTUP_USER_ID not set or still has placeholder value");
-    return { success: false, error: "TEXTUP_USER_ID sozlanmagan. .env faylida to'g'ri qiymat kiriting." };
+  if (isPlaceholder(userId)) {
+    return {
+      success: false,
+      error:
+        "TEXTUP_USER_ID sozlanmagan. Login javobidagi user.id qiymatini .env ga kiriting.",
+    };
   }
 
   const cleanedPhone = cleanPhone(phone);
@@ -64,7 +88,6 @@ export async function sendSMS(phone, message) {
 
   try {
     const token = await getTextUpToken();
-
     const body = {
       message,
       userId,
@@ -72,7 +95,7 @@ export async function sendSMS(phone, message) {
       recipients: [cleanedPhone],
     };
 
-    if (nicknameId && nicknameId !== "your-nickname-uuid-from-nick-names-endpoint") {
+    if (!isPlaceholder(nicknameId)) {
       body.nicknameId = nicknameId;
     }
 
@@ -80,23 +103,31 @@ export async function sendSMS(phone, message) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });
 
-    const result = await res.json();
+    const result = await res.json().catch(() => ({}));
 
     if (!res.ok) {
       console.error(`❌ TextUP send error to ${cleanedPhone}:`, result);
-      return { success: false, error: result?.message || JSON.stringify(result) };
+      return {
+        success: false,
+        error: result?.message || `TextUP yuborish xatosi (${res.status})`,
+      };
     }
 
-    console.log(`✅ SMS sent to ${cleanedPhone}, smsId: ${result.smsId}`);
-    return { success: true, smsId: result.smsId };
+    console.log(
+      `✅ SMS yuborildi: ${cleanedPhone}, smsId: ${result.smsId || "n/a"}`,
+    );
+    return { success: true, smsId: result.smsId || null };
   } catch (err) {
     console.error(`❌ SMS error to ${cleanedPhone}:`, err.message);
-    return { success: false, error: err.message };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Noma'lum SMS xatosi",
+    };
   }
 }
 
@@ -105,6 +136,9 @@ export async function testConnection() {
     await getTextUpToken();
     return { connected: true };
   } catch (err) {
-    return { connected: false, error: err.message };
+    return {
+      connected: false,
+      error: err instanceof Error ? err.message : "Noma'lum ulanish xatosi",
+    };
   }
 }
