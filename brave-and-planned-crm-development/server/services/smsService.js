@@ -1,51 +1,141 @@
-import axios from 'axios';
+const AUTH_BASE = "https://api-auth.textup.uz";
+const SMS_BASE = "https://sms-api.textup.uz";
 
-const ESKIZ_API = 'https://notify.eskiz.uz';
-let eskizToken = null;
-let tokenExpiry = null;
+let cachedToken = null;
+let tokenExpiry = 0;
 
-export async function getEskizToken() {
-  // Return cached token if valid
-  if (eskizToken && tokenExpiry && Date.now() < tokenExpiry) {
-    return eskizToken;
+function isPlaceholder(value) {
+  const placeholders = new Set([
+    "your@email.com",
+    "your_password",
+    "your-user-uuid-from-login-response",
+    "your-nickname-uuid-from-nick-names-endpoint",
+    "your-textup-email@example.com",
+    "your-textup-password",
+  ]);
+  return !value || placeholders.has(String(value).trim());
+}
+
+export async function getTextUpToken() {
+  if (cachedToken && Date.now() < tokenExpiry) {
+    return cachedToken;
+  }
+
+  const email = process.env.TEXTUP_EMAIL;
+  const password = process.env.TEXTUP_PASSWORD;
+
+  if (isPlaceholder(email) || isPlaceholder(password)) {
+    throw new Error(
+      "TEXTUP_EMAIL va TEXTUP_PASSWORD .env faylida to'g'ri sozlanmagan. Haqiqiy TextUP login kiriting.",
+    );
+  }
+
+  const res = await fetch(`${AUTH_BASE}/v1/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`TextUP login xatolik (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  cachedToken = data.accessToken;
+  tokenExpiry = Date.now() + 50 * 60 * 1000;
+  console.log("✅ TextUP token olindi");
+  return cachedToken;
+}
+
+export function cleanPhone(raw) {
+  if (!raw) return null;
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.startsWith("998") && digits.length === 12) return `+${digits}`;
+  if (digits.length === 9) return `+998${digits}`;
+  return `+${digits}`;
+}
+
+export function getParentPhone(student) {
+  if (!student) return null;
+  return student.parent_phone || student.parentPhone || student.phone || null;
+}
+
+export function isCredentialError(errorMessage = "") {
+  return /sozlanmagan|login xatolik|TEXTUP_|401|403|Unauthorized/i.test(
+    String(errorMessage),
+  );
+}
+
+export async function sendSMS(phone, message) {
+  const userId = process.env.TEXTUP_USER_ID;
+  const nicknameId = process.env.TEXTUP_NICKNAME_ID;
+
+  if (isPlaceholder(userId)) {
+    return {
+      success: false,
+      error:
+        "TEXTUP_USER_ID sozlanmagan. Login javobidagi user.id qiymatini .env ga kiriting.",
+    };
+  }
+
+  const cleanedPhone = cleanPhone(phone);
+  if (!cleanedPhone) {
+    return { success: false, error: "Noto'g'ri telefon raqami" };
   }
 
   try {
-    const response = await axios.post(`${ESKIZ_API}/api/auth/login`, {
-      email: process.env.ESKIZ_EMAIL,
-      password: process.env.ESKIZ_PASSWORD
+    const token = await getTextUpToken();
+    const body = {
+      message,
+      userId,
+      name: `CRM-${Date.now()}`,
+      recipients: [cleanedPhone],
+    };
+
+    if (!isPlaceholder(nicknameId)) {
+      body.nicknameId = nicknameId;
+    }
+
+    const res = await fetch(`${SMS_BASE}/v1/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
     });
 
-    eskizToken = response.data.data.token;
-    // Token valid for 30 days, cache for 25 days
-    tokenExpiry = Date.now() + (25 * 24 * 60 * 60 * 1000);
+    const result = await res.json().catch(() => ({}));
 
-    console.log('✅ Eskiz token obtained');
-    return eskizToken;
+    if (!res.ok) {
+      return {
+        success: false,
+        error: result?.message || `TextUP yuborish xatosi (${res.status})`,
+      };
+    }
+
+    console.log(
+      `✅ SMS yuborildi: ${cleanedPhone}, smsId: ${result.smsId || "n/a"}`,
+    );
+    return { success: true, smsId: result.smsId || null };
   } catch (err) {
-    console.error('❌ Error getting Eskiz token:', err.message);
-    throw err;
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Noma'lum SMS xatosi",
+    };
   }
 }
 
-export async function sendSMS(phoneNumber, message) {
+export async function testConnection() {
   try {
-    const token = await getEskizToken();
-
-    const response = await axios.post(`${ESKIZ_API}/api/message/sms/send`, {
-      mobile_phone: phoneNumber,
-      message: message,
-      from: '4546'
-    }, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    console.log(`✅ SMS sent to ${phoneNumber}`);
-    return response.data;
+    await getTextUpToken();
+    return { connected: true };
   } catch (err) {
-    console.error(`❌ Error sending SMS to ${phoneNumber}:`, err.message);
-    throw err;
+    return {
+      connected: false,
+      error: err instanceof Error ? err.message : "Noma'lum ulanish xatosi",
+    };
   }
 }
