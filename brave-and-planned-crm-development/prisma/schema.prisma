@@ -144,7 +144,7 @@ model Transfer {
   doneBy       Int?     @map("done_by")
 
   // Relations
-  student      Student  @relation(fields: [studentId], references: [id])
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   fromGroup    Group    @relation("TransferFrom", fields: [fromGroupId], references: [id])
   toGroup      Group    @relation("TransferTo", fields: [toGroupId], references: [id])
   doneByUser   User?    @relation("TransferDoneBy", fields: [doneBy], references: [id])

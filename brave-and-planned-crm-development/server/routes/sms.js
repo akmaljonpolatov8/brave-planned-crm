@@ -104,7 +104,17 @@ router.post('/send', roleCheck('owner', 'manager'), async (req, res) => {
       });
 
       if (result.success) sent++;
-      else failed++;
+      else {
+        failed++;
+        // If first failure is due to config issue, stop early
+        if (failed === 1 && uniqueRecipients.length > 1 && 
+            (result.error?.includes('sozlanmagan') || result.error?.includes('login'))) {
+          return res.status(400).json({ 
+            message: `SMS xatolik: ${result.error}`,
+            success: false 
+          });
+        }
+      }
     }
 
     return res.json({
