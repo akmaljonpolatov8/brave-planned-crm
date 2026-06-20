@@ -99,19 +99,36 @@ export function GroupEditModal({
   };
 
   const save = async () => {
-    await api.put(`/groups/${group.id}`, {
-      name: form.name,
-      teacher_id: isOwner ? form.teacher_id || null : undefined,
-      schedule_days: form.schedule_days.join(","),
-      start_time: form.start_time,
-      end_time: form.end_time,
-      monthly_fee: form.monthly_fee,
-      capacity: form.capacity,
-      is_active: isOwner ? form.is_active : undefined,
-    });
-    toast.success("Guruh muvaffaqiyatli yangilandi");
-    onSaved();
-    onClose();
+    if (!form.name.trim()) {
+      toast.error("Guruh nomi kiritilishi shart");
+      return;
+    }
+
+    try {
+      const payload = {
+        name: form.name.trim(),
+        teacher_id: form.teacher_id ? Number(form.teacher_id) : null,
+        schedule_days: form.schedule_days.join(","),
+        start_time: form.start_time,
+        end_time: form.end_time,
+        monthly_fee: Number(form.monthly_fee) || 0,
+        capacity: Number(form.capacity) || 20,
+        is_active: isOwner ? form.is_active : undefined,
+      };
+
+      if (mode === "create") {
+        await api.post("/groups", payload);
+        toast.success("Guruh yaratildi ✓");
+      } else {
+        await api.put(`/groups/${group.id}`, payload);
+        toast.success("Guruh yangilandi ✓");
+      }
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Xatolik yuz berdi");
+      console.error("Group save error:", err);
+    }
   };
 
   return (
@@ -127,15 +144,18 @@ export function GroupEditModal({
         />
         <input
           className="input"
-          type="number"
-          value={form.monthly_fee}
-          onChange={(event) =>
+          type="text"
+          inputMode="numeric"
+          value={form.monthly_fee || ""}
+          onFocus={(e) => e.target.select()}
+          onChange={(event) => {
+            const raw = event.target.value.replace(/\D/g, "");
             setForm((current) => ({
               ...current,
-              monthly_fee: Number(event.target.value),
-            }))
-          }
-          placeholder="Oylik to'lov"
+              monthly_fee: raw ? Number(raw) : 0,
+            }));
+          }}
+          placeholder="Oylik to'lov (so'm)"
         />
         <input
           className="input"
@@ -158,14 +178,17 @@ export function GroupEditModal({
         />
         <input
           className="input"
-          type="number"
-          value={form.capacity}
-          onChange={(event) =>
+          type="text"
+          inputMode="numeric"
+          value={form.capacity || ""}
+          onFocus={(e) => e.target.select()}
+          onChange={(event) => {
+            const raw = event.target.value.replace(/\D/g, "");
             setForm((current) => ({
               ...current,
-              capacity: Number(event.target.value),
-            }))
-          }
+              capacity: raw ? Number(raw) : 20,
+            }));
+          }}
           placeholder="Sig'im"
         />
         {isOwner ? (

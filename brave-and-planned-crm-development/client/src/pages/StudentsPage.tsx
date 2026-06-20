@@ -12,11 +12,12 @@ import type { Group, Student } from "../types";
 
 const emptyForm = {
   full_name: "",
-  ota_phone: "",
-  ona_phone: "",
-  telefon: "",
+  phone: "",
+  parent_phone: "",
+  parent_name: "",
   group_id: "",
   status: "active",
+  notes: "",
 };
 
 const splitGroupNames = (value: unknown) => {
@@ -57,12 +58,42 @@ export function StudentsPage() {
 
   const save = async () => {
     if (!form.full_name) return toast.error("F.I.Sh kiritilsin");
-    if (editing?.id) await api.put(`/students/${editing.id}`, form);
-    else await api.post("/students", form);
-    toast.success("O'quvchi saqlandi");
-    setEditing(null);
-    setForm(emptyForm);
-    load();
+    try {
+      if (editing?.id) {
+        await api.put(`/students/${editing.id}`, {
+          full_name: form.full_name,
+          phone: form.phone,
+          parent_phone: form.parent_phone,
+          parent_name: form.parent_name,
+          status: form.status,
+          notes: form.notes,
+        });
+        toast.success("O'quvchi yangilandi ✓");
+      } else {
+        // Create student
+        const res = await api.post("/students", {
+          full_name: form.full_name,
+          phone: form.phone,
+          parent_phone: form.parent_phone,
+          parent_name: form.parent_name,
+          status: form.status,
+          notes: form.notes,
+        });
+        // Add to group if selected
+        if (form.group_id && res.data?.id) {
+          await api.post(`/groups/${form.group_id}/students`, {
+            student_id: res.data.id,
+          });
+        }
+        toast.success("O'quvchi yaratildi ✓");
+      }
+      setEditing(null);
+      setForm(emptyForm);
+      load();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Xatolik yuz berdi");
+      console.error("Student save error:", err);
+    }
   };
 
   return (
@@ -106,10 +137,9 @@ export function StudentsPage() {
                 <td>{index + 1}</td>
                 <td>{student.full_name}</td>
                 <td>
-                  {student.ota_phone ||
-                    student.ona_phone ||
-                    student.telefon ||
-                    "-"}
+                  {student.phone ||
+                    student.parent_phone ||
+                    "—"}
                 </td>
                 <td>
                   <div className="flex flex-wrap gap-2">
@@ -131,14 +161,29 @@ export function StudentsPage() {
                     )}
                   </div>
                 </td>
-                <td>{student.status}</td>
+                <td>
+                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                    student.status === "active" ? "bg-green-500/15 text-green-400" :
+                    student.status === "inactive" ? "bg-white/10 text-white/40" :
+                    "bg-blue-500/15 text-blue-400"
+                  }`}>
+                    {student.status === "active" ? "Faol" : student.status === "inactive" ? "Nofaol" : "Bitiruvchi"}
+                  </span>
+                </td>
                 <td className="space-x-2">
                   {user?.role === "owner" || user?.role === "manager" ? (
                     <button
                       className="btn-secondary"
                       onClick={() => {
                         setEditing(student);
-                        setForm(student);
+                        setForm({
+                          full_name: student.full_name || "",
+                          phone: (student as any).phone || "",
+                          parent_phone: (student as any).parent_phone || "",
+                          parent_name: (student as any).parent_name || "",
+                          status: student.status || "active",
+                          notes: (student as any).notes || "",
+                        });
                       }}
                     >
                       <span className="inline-flex items-center gap-2">
@@ -161,8 +206,14 @@ export function StudentsPage() {
                       className="btn-danger"
                       onClick={async () => {
                         if (confirm("O'chirilsinmi?")) {
-                          await api.delete(`/students/${student.id}`);
-                          load();
+                          try {
+                            await api.delete(`/students/${student.id}`);
+                            toast.success("O'quvchi o'chirildi ✓");
+                            load();
+                          } catch (err: any) {
+                            toast.error(err?.response?.data?.message || "O'chirishda xatolik yuz berdi");
+                            console.error("Delete student error:", err);
+                          }
                         }
                       }}
                     >
@@ -196,35 +247,33 @@ export function StudentsPage() {
               }
             >
               <option value="">Guruh tanlang</option>
-              {groups.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
               ))}
             </select>
             <input
               className="input"
-              value={form.ota_phone || ""}
+              value={form.phone || ""}
               onChange={(e) =>
-                setForm((v: any) => ({ ...v, ota_phone: e.target.value }))
+                setForm((v: any) => ({ ...v, phone: e.target.value }))
               }
-              placeholder="Ota telefoni"
+              placeholder="Telefon raqami"
             />
             <input
               className="input"
-              value={form.ona_phone || ""}
+              value={form.parent_phone || ""}
               onChange={(e) =>
-                setForm((v: any) => ({ ...v, ona_phone: e.target.value }))
+                setForm((v: any) => ({ ...v, parent_phone: e.target.value }))
               }
-              placeholder="Ona telefoni"
+              placeholder="Ota-ona telefoni"
             />
             <input
               className="input"
-              value={form.telefon || ""}
+              value={form.parent_name || ""}
               onChange={(e) =>
-                setForm((v: any) => ({ ...v, telefon: e.target.value }))
+                setForm((v: any) => ({ ...v, parent_name: e.target.value }))
               }
-              placeholder="Telefon"
+              placeholder="Ota-ona ismi"
             />
             <select
               className="input"
@@ -235,8 +284,16 @@ export function StudentsPage() {
             >
               <option value="active">Faol</option>
               <option value="inactive">Nofaol</option>
-              <option value="debt">Qarzdor</option>
+              <option value="frozen">Muzlatilgan</option>
             </select>
+            <input
+              className="input"
+              value={form.notes || ""}
+              onChange={(e) =>
+                setForm((v: any) => ({ ...v, notes: e.target.value }))
+              }
+              placeholder="Izoh (ixtiyoriy)"
+            />
           </div>
           <div className="mt-5 flex justify-end gap-3">
             <button className="btn-secondary" onClick={() => setEditing(null)}>

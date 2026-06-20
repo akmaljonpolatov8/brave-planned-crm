@@ -1,5 +1,5 @@
-const express = require("express");
-const { db } = require("../db/database");
+import express from 'express';
+import prisma from '../lib/prisma.js';
 
 const router = express.Router();
 
@@ -12,36 +12,43 @@ function getWeekBounds() {
   sunday.setDate(monday.getDate() + 6);
   return {
     from: monday.toISOString().slice(0, 10),
-    to: sunday.toISOString().slice(0, 10),
+    to: sunday.toISOString().slice(0, 10)
   };
 }
 
-router.get("/weekly", (req, res) => {
+router.get('/weekly', async (req, res) => {
   const { from, to } = req.query.from && req.query.to ? req.query : getWeekBounds();
-  const groups = db.prepare("SELECT * FROM groups ORDER BY name").all();
 
-  const report = groups.map((group) => {
-    const totalStudents = db.prepare("SELECT COUNT(*) AS count FROM students WHERE group_id = ?").get(group.id).count;
-    const present = db.prepare(`
-      SELECT COUNT(*) AS count FROM attendance
-      WHERE group_id = ? AND date BETWEEN ? AND ? AND status = 'present'
-    `).get(group.id, from, to).count;
-    const absent = db.prepare(`
-      SELECT COUNT(*) AS count FROM attendance
-      WHERE group_id = ? AND date BETWEEN ? AND ? AND status = 'absent'
-    `).get(group.id, from, to).count;
-    const totalMarks = present + absent;
-    return {
-      group_id: group.id,
-      group_name: group.name,
-      total_students: totalStudents,
-      present_count: present,
-      absent_count: absent,
-      attendance_rate: totalMarks ? Math.round((present / totalMarks) * 100) : 0,
-    };
-  });
+  try {
+    const groups = await prisma.group.findMany({
+      where: { isActive: true },
+      include: { students: { where: { isActive: true } } }
+    });
 
-  res.json({ from, to, report });
+    const report = [];
+    for (const group of groups) {
+      const present = await prisma.attendance.count({
+        where: { groupId: group.id, date: { gte: from, lte: to }, status: 'present' }
+      });
+      const absent = await prisma.attendance.count({
+        where: { groupId: group.id, date: { gte: from, lte: to }, status: 'absent' }
+      });
+      const totalMarks = present + absent;
+
+      report.push({
+        group_id: group.id,
+        group_name: group.name,
+        total_students: group.students.length,
+        present_count: present,
+        absent_count: absent,
+        attendance_rate: totalMarks ? Math.round((present / totalMarks) * 100) : 0
+      });
+    }
+
+    res.json({ from, to, report });
+  } catch (err) {
+    res.status(500).json({ message: 'Server xatolik' });
+  }
 });
 
-module.exports = router;
+export default router;

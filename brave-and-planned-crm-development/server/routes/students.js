@@ -1,186 +1,219 @@
-import express from "express";
-import { getDatabase } from "../db/database.js";
-import { roleCheck } from "../middleware/roleCheck.js";
+import express from 'express';
+import prisma from '../lib/prisma.js';
+import { roleCheck } from '../middleware/roleCheck.js';
 
 const router = express.Router();
 
 // Get all students
-router.get("/", (req, res) => {
-  const db = getDatabase();
-  const students = db
-    .prepare(
-      `
-    SELECT s.*, 
-           GROUP_CONCAT(g.name) as groups
-    FROM students s
-    LEFT JOIN group_students gs ON s.id = gs.student_id AND gs.is_active = 1
-    LEFT JOIN groups g ON gs.group_id = g.id
-    GROUP BY s.id
-    ORDER BY s.full_name
-  `,
-    )
-    .all();
-  res.json(students);
+router.get('/', async (req, res) => {
+  try {
+    const students = await prisma.student.findMany({
+      include: {
+        groups: {
+          where: { isActive: true },
+          include: { group: { select: { name: true } } }
+        }
+      },
+      orderBy: { fullName: 'asc' }
+    });
+
+    const result = students.map(s => ({
+      id: s.id,
+      full_name: s.fullName,
+      phone: s.phone,
+      parent_phone: s.parentPhone,
+      parent_name: s.parentName,
+      status: s.status,
+      notes: s.notes,
+      created_at: s.createdAt,
+      groups: s.groups.map(gs => gs.group.name).join(', ')
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error('Get students error:', err);
+    res.status(500).json({ message: 'Server xatolik' });
+  }
 });
 
 // Get student by ID
-router.get("/:id", (req, res) => {
-  const db = getDatabase();
-  const student = db
-    .prepare("SELECT * FROM students WHERE id = ?")
-    .get(req.params.id);
+router.get('/:id', async (req, res) => {
+  try {
+    const student = await prisma.student.findUnique({
+      where: { id: Number(req.params.id) }
+    });
 
-  if (!student) {
-    return res.status(404).json({ message: "Student not found" });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json({
+      id: student.id,
+      full_name: student.fullName,
+      phone: student.phone,
+      parent_phone: student.parentPhone,
+      parent_name: student.parentName,
+      status: student.status,
+      notes: student.notes,
+      created_at: student.createdAt
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server xatolik' });
   }
-
-  res.json(student);
 });
 
 // Create student
-router.post("/", roleCheck("owner", "manager"), (req, res) => {
-  const { full_name, phone, parent_phone, parent_name, status, notes } =
-    req.body;
+router.post('/', roleCheck('owner', 'manager'), async (req, res) => {
+  const { full_name, phone, parent_phone, parent_name, status, notes } = req.body;
 
   if (!full_name) {
-    return res.status(400).json({ message: "Full name required" });
+    return res.status(400).json({ message: 'Full name required' });
   }
 
-  const db = getDatabase();
-  const result = db
-    .prepare(
-      `
-    INSERT INTO students (full_name, phone, parent_phone, parent_name, status, notes)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `,
-    )
-    .run(
-      full_name,
-      phone || null,
-      parent_phone || null,
-      parent_name || null,
-      status || "active",
-      notes || null,
-    );
-
-  res
-    .status(201)
-    .json({
-      id: result.lastInsertRowid,
-      full_name,
-      phone,
-      parent_phone,
-      parent_name,
-      status,
-      notes,
+  try {
+    const student = await prisma.student.create({
+      data: {
+        fullName: full_name,
+        phone: phone || null,
+        parentPhone: parent_phone || null,
+        parentName: parent_name || null,
+        status: status || 'active',
+        notes: notes || null
+      }
     });
+
+    res.status(201).json({
+      id: student.id,
+      full_name: student.fullName,
+      phone: student.phone,
+      parent_phone: student.parentPhone,
+      parent_name: student.parentName,
+      status: student.status,
+      notes: student.notes
+    });
+  } catch (err) {
+    console.error('Create student error:', err);
+    res.status(500).json({ message: 'Server xatolik' });
+  }
 });
 
 // Update student
-router.put("/:id", roleCheck("owner", "manager"), (req, res) => {
-  const { full_name, phone, parent_phone, parent_name, status, notes } =
-    req.body;
-  const db = getDatabase();
+router.put('/:id', roleCheck('owner', 'manager'), async (req, res) => {
+  const { full_name, phone, parent_phone, parent_name, status, notes } = req.body;
 
-  const student = db
-    .prepare("SELECT * FROM students WHERE id = ?")
-    .get(req.params.id);
-  if (!student) {
-    return res.status(404).json({ message: "Student not found" });
+  try {
+    const existing = await prisma.student.findUnique({
+      where: { id: Number(req.params.id) }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    const student = await prisma.student.update({
+      where: { id: Number(req.params.id) },
+      data: {
+        fullName: full_name || existing.fullName,
+        phone: phone !== undefined ? phone : existing.phone,
+        parentPhone: parent_phone !== undefined ? parent_phone : existing.parentPhone,
+        parentName: parent_name !== undefined ? parent_name : existing.parentName,
+        status: status || existing.status,
+        notes: notes !== undefined ? notes : existing.notes
+      }
+    });
+
+    res.json({
+      id: student.id,
+      full_name: student.fullName,
+      phone: student.phone,
+      parent_phone: student.parentPhone,
+      parent_name: student.parentName,
+      status: student.status,
+      notes: student.notes
+    });
+  } catch (err) {
+    console.error('Update student error:', err);
+    res.status(500).json({ message: 'Server xatolik' });
   }
-
-  db.prepare(
-    `
-    UPDATE students SET full_name = ?, phone = ?, parent_phone = ?, parent_name = ?, status = ?, notes = ?
-    WHERE id = ?
-  `,
-  ).run(
-    full_name || student.full_name,
-    phone || student.phone,
-    parent_phone || student.parent_phone,
-    parent_name || student.parent_name,
-    status || student.status,
-    notes || student.notes,
-    req.params.id,
-  );
-
-  res.json({
-    id: req.params.id,
-    full_name,
-    phone,
-    parent_phone,
-    parent_name,
-    status,
-    notes,
-  });
 });
 
 // Delete student
-router.delete("/:id", roleCheck("owner"), (req, res) => {
-  const db = getDatabase();
-  const student = db
-    .prepare("SELECT * FROM students WHERE id = ?")
-    .get(req.params.id);
+router.delete('/:id', roleCheck('owner'), async (req, res) => {
+  const studentId = Number(req.params.id);
 
-  if (!student) {
-    return res.status(404).json({ message: "Student not found" });
+  try {
+    const student = await prisma.student.findUnique({
+      where: { id: studentId }
+    });
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Delete related records first to avoid foreign key constraints
+    await prisma.$transaction([
+      prisma.transfer.deleteMany({ where: { studentId } }),
+      prisma.smsLog.deleteMany({ where: { studentId } }),
+      prisma.attendance.deleteMany({ where: { studentId } }),
+      prisma.payment.deleteMany({ where: { studentId } }),
+      prisma.groupStudent.deleteMany({ where: { studentId } }),
+      prisma.student.delete({ where: { id: studentId } }),
+    ]);
+
+    res.json({ message: 'Student deleted' });
+  } catch (err) {
+    console.error('Delete student error:', err);
+    res.status(500).json({ message: "O'quvchini o'chirishda xatolik: " + (err.message || 'Server xatolik') });
   }
-
-  db.prepare("DELETE FROM students WHERE id = ?").run(req.params.id);
-  res.json({ message: "Student deleted" });
 });
 
 // Transfer student to another group
-router.post("/:id/transfer", roleCheck("owner", "manager"), (req, res) => {
-  const {
-    from_group_id,
-    to_group_id,
-    fromGroupId,
-    toGroupId,
-    studentId: bodyStudentId,
-    note,
-  } = req.body;
-  const studentId = req.params.id;
-  const db = getDatabase();
+router.post('/:id/transfer', roleCheck('owner', 'manager'), async (req, res) => {
+  const { from_group_id, to_group_id, fromGroupId, toGroupId, note } = req.body;
+  const studentId = Number(req.params.id);
 
-  const student = db
-    .prepare("SELECT * FROM students WHERE id = ?")
-    .get(studentId);
-  if (!student) {
-    return res.status(404).json({ message: "Student not found" });
-  }
-
-  // Remove from old group
-  const sourceGroupId = from_group_id || fromGroupId;
-  const targetGroupId = to_group_id || toGroupId;
+  const sourceGroupId = Number(from_group_id || fromGroupId);
+  const targetGroupId = Number(to_group_id || toGroupId);
 
   if (!sourceGroupId || !targetGroupId) {
-    return res
-      .status(400)
-      .json({ message: "from_group_id and to_group_id required" });
+    return res.status(400).json({ message: 'from_group_id and to_group_id required' });
   }
 
-  db.prepare(
-    "UPDATE group_students SET is_active = 0, left_at = datetime('now') WHERE student_id = ? AND group_id = ?",
-  ).run(bodyStudentId || studentId, sourceGroupId);
+  try {
+    const student = await prisma.student.findUnique({ where: { id: studentId } });
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
 
-  // Add to new group
-  db.prepare(
-    "INSERT INTO group_students (group_id, student_id, is_active) VALUES (?, ?, 1)",
-  ).run(targetGroupId, bodyStudentId || studentId);
+    // Deactivate old group membership
+    await prisma.groupStudent.updateMany({
+      where: { studentId, groupId: sourceGroupId, isActive: true },
+      data: { isActive: false, leftAt: new Date() }
+    });
 
-  // Log transfer
-  db.prepare(
-    "INSERT INTO transfers (student_id, from_group_id, to_group_id, note, done_by) VALUES (?, ?, ?, ?, ?)",
-  ).run(
-    bodyStudentId || studentId,
-    sourceGroupId,
-    targetGroupId,
-    note || null,
-    req.user.id,
-  );
+    // Create new group membership
+    await prisma.groupStudent.upsert({
+      where: { groupId_studentId: { groupId: targetGroupId, studentId } },
+      update: { isActive: true, leftAt: null, joinedAt: new Date() },
+      create: { groupId: targetGroupId, studentId, isActive: true }
+    });
 
-  res.json({ message: "Student transferred" });
+    // Log transfer
+    await prisma.transfer.create({
+      data: {
+        studentId,
+        fromGroupId: sourceGroupId,
+        toGroupId: targetGroupId,
+        note: note || null,
+        doneBy: req.user.id
+      }
+    });
+
+    res.json({ message: 'Student transferred' });
+  } catch (err) {
+    console.error('Transfer error:', err);
+    res.status(500).json({ message: 'Server xatolik' });
+  }
 });
 
 export default router;

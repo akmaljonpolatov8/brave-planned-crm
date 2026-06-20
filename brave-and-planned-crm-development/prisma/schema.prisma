@@ -9,139 +9,160 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  password  String
-  role      Role     @default(TEACHER)
-  teacher   Teacher?
-  createdAt DateTime @default(now())
-}
+  id           Int        @id @default(autoincrement())
+  username     String     @unique
+  fullName     String     @map("full_name")
+  passwordHash String     @map("password_hash")
+  role         String     // owner, manager, teacher
+  isActive     Boolean    @default(true) @map("is_active")
+  createdAt    DateTime   @default(now()) @map("created_at")
 
-enum Role {
-  OWNER
-  MANAGER
-  TEACHER
+  // Relations
+  teacher      Teacher?
+  transfers    Transfer[] @relation("TransferDoneBy")
+
+  @@map("users")
 }
 
 model Teacher {
-  id        String   @id @default(cuid())
-  fullName  String
-  phone     String?
-  isActive  Boolean  @default(true)
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  groups    Group[]
-  createdAt DateTime @default(now())
-}
+  id           Int      @id @default(autoincrement())
+  fullName     String   @map("full_name")
+  phone        String?
+  isActive     Boolean  @default(true) @map("is_active")
+  userId       Int?     @unique @map("user_id")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-model Student {
-  id          String         @id @default(cuid())
-  firstName   String
-  lastName    String
-  phone       String?
-  parentPhone String?
-  parentName  String?
-  notes       String?
-  status      StudentStatus  @default(ACTIVE)
-  groups      StudentGroup[]
-  payments    Payment[]
-  smsLogs     SmsLog[]
-  createdAt   DateTime       @default(now())
-}
+  // Relations
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  groups       Group[]
 
-enum StudentStatus {
-  ACTIVE
-  INACTIVE
-  GRADUATED
+  @@map("teachers")
 }
 
 model Group {
-  id           String         @id @default(cuid())
+  id           Int      @id @default(autoincrement())
   name         String
-  subject      String         @default("English")
-  scheduleDays String[]
-  startTime    String
-  endTime      String         @default("")
-  monthlyFee   Int            @default(0)
-  capacity     Int            @default(20)
-  isActive     Boolean        @default(true)
-  teacherId    String
-  teacher      Teacher        @relation(fields: [teacherId], references: [id])
-  students     StudentGroup[]
-  lessons      Lesson[]
+  teacherId    Int?     @map("teacher_id")
+  scheduleDays String?  @map("schedule_days")
+  startTime    String?  @map("start_time")
+  endTime      String?  @map("end_time")
+  monthlyFee   Int      @default(0) @map("monthly_fee")
+  capacity     Int      @default(20)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  teacher      Teacher? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  students     GroupStudent[]
+  attendance   Attendance[]
   payments     Payment[]
-  createdAt    DateTime       @default(now())
+  transfersFrom Transfer[] @relation("TransferFrom")
+  transfersTo   Transfer[] @relation("TransferTo")
+
+  @@map("groups")
 }
 
-model StudentGroup {
-  id        String   @id @default(cuid())
-  studentId String
-  groupId   String
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  joinedAt  DateTime @default(now())
-  @@unique([studentId, groupId])
+model Student {
+  id           Int      @id @default(autoincrement())
+  fullName     String   @map("full_name")
+  phone        String?
+  parentPhone  String?  @map("parent_phone")
+  parentName   String?  @map("parent_name")
+  status       String   @default("active") // active, inactive, frozen
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  groups       GroupStudent[]
+  attendance   Attendance[]
+  payments     Payment[]
+  smsLogs      SmsLog[]
+  transfers    Transfer[]
+
+  @@map("students")
 }
 
-model Lesson {
-  id          String       @id @default(cuid())
-  groupId     String
-  date        DateTime
-  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  attendances Attendance[]
-  createdAt   DateTime     @default(now())
-  @@unique([groupId, date])
+model GroupStudent {
+  id         Int      @id @default(autoincrement())
+  groupId    Int      @map("group_id")
+  studentId  Int      @map("student_id")
+  joinedAt   DateTime @default(now()) @map("joined_at")
+  leftAt     DateTime? @map("left_at")
+  isActive   Boolean  @default(true) @map("is_active")
+
+  // Relations
+  group      Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, studentId])
+  @@map("group_students")
 }
 
 model Attendance {
-  id        String           @id @default(cuid())
-  lessonId  String
-  studentId String
-  status    AttendanceStatus @default(ABSENT)
-  lesson    Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  @@unique([lessonId, studentId])
-}
+  id         Int      @id @default(autoincrement())
+  groupId    Int      @map("group_id")
+  studentId  Int      @map("student_id")
+  date       String
+  status     String   // present, absent, late, excused
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at")
 
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  LATE
-  EXCUSED
+  // Relations
+  group      Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, studentId, date])
+  @@map("attendance")
 }
 
 model Payment {
-  id        String        @id @default(cuid())
-  studentId String
-  groupId   String
-  month     String
-  amount    Int
-  status    PaymentStatus @default(UNPAID)
-  paidAt    DateTime?
-  student   Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  group     Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  createdAt DateTime      @default(now())
+  id         Int       @id @default(autoincrement())
+  studentId  Int       @map("student_id")
+  groupId    Int       @map("group_id")
+  month      String
+  amount     Int       @default(0)
+  paid       Boolean   @default(false)
+  paidAt     DateTime? @map("paid_at")
+  note       String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group      Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
   @@unique([studentId, groupId, month])
+  @@map("payments")
 }
 
-enum PaymentStatus {
-  PAID
-  UNPAID
+model Transfer {
+  id           Int      @id @default(autoincrement())
+  studentId    Int      @map("student_id")
+  fromGroupId  Int      @map("from_group_id")
+  toGroupId    Int      @map("to_group_id")
+  transferDate DateTime @default(now()) @map("transfer_date")
+  note         String?
+  doneBy       Int?     @map("done_by")
+
+  // Relations
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fromGroup    Group    @relation("TransferFrom", fields: [fromGroupId], references: [id])
+  toGroup      Group    @relation("TransferTo", fields: [toGroupId], references: [id])
+  doneByUser   User?    @relation("TransferDoneBy", fields: [doneBy], references: [id])
+
+  @@map("transfers")
 }
 
 model SmsLog {
-  id          String    @id @default(cuid())
-  studentId   String
-  parentPhone String
-  message     String
-  month       String
-  status      SmsStatus @default(PENDING)
-  sentAt      DateTime?
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-}
+  id         Int      @id @default(autoincrement())
+  studentId  Int?     @map("student_id")
+  phone      String
+  message    String
+  month      String?
+  status     String   @default("pending")
+  sentAt     DateTime @default(now()) @map("sent_at")
 
-enum SmsStatus {
-  PENDING
-  SENT
-  FAILED
+  // Relations
+  student    Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+
+  @@map("sms_logs")
 }

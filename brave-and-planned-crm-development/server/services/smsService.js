@@ -53,6 +53,7 @@ export function cleanPhone(raw) {
   const digits = String(raw).replace(/\D/g, "");
   if (!digits) return null;
   if (digits.startsWith("998") && digits.length === 12) return `+${digits}`;
+  if (digits.startsWith("7") && digits.length === 11) return `+${digits}`;
   if (digits.length === 9) return `+998${digits}`;
   return `+${digits}`;
 }
@@ -110,6 +111,7 @@ export async function sendSMS(phone, message) {
     const result = await res.json().catch(() => ({}));
 
     if (!res.ok) {
+      console.error(`❌ TextUP send error to ${cleanedPhone}:`, result);
       return {
         success: false,
         error: result?.message || `TextUP yuborish xatosi (${res.status})`,
@@ -121,6 +123,7 @@ export async function sendSMS(phone, message) {
     );
     return { success: true, smsId: result.smsId || null };
   } catch (err) {
+    console.error(`❌ SMS error to ${cleanedPhone}:`, err.message);
     return {
       success: false,
       error: err instanceof Error ? err.message : "Noma'lum SMS xatosi",
