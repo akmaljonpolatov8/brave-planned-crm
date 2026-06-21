@@ -24,7 +24,7 @@ export function AttendanceGrid({
       <table>
         <thead>
           <tr>
-            <th>O'quvchi</th>
+            <th className="sticky left-0 z-10 bg-[#1a0a2e]">O'quvchi</th>
             {days.map((day) => (
               <th key={day}>{day}</th>
             ))}
@@ -33,16 +33,19 @@ export function AttendanceGrid({
         <tbody>
           {students.map((student) => (
             <tr key={student.id}>
-              <td>{student.full_name}</td>
+              <td className="sticky left-0 z-10 bg-[#1a0a2e] font-medium">{student.full_name}</td>
               {days.map((day) => {
                 const date = `${month}-${String(day).padStart(2, "0")}`;
                 const status = map.get(`${student.id}-${date}`) as "present" | "absent" | undefined;
+                const statusLabel = status === "present" ? "keldi" : status === "absent" ? "kelmadi" : "belgilanmagan";
                 const color = status === "present" ? "bg-emerald-500/50" : status === "absent" ? "bg-red-500/50" : "bg-white/10";
                 return (
                   <td key={date}>
                     <button
-                      className={`h-8 w-8 rounded-lg ${color}`}
+                      className={`h-8 w-8 rounded-lg transition-all hover:brightness-125 focus:outline-none focus:ring-2 focus:ring-yellow-400 ${color}`}
                       onClick={() => onToggle(student.id, date, status)}
+                      aria-label={`${student.full_name}, ${day}-sana: ${statusLabel}`}
+                      title={`${student.full_name}, ${day}-sana: ${statusLabel}`}
                     />
                   </td>
                 );
