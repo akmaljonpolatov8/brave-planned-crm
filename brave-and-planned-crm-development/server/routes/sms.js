@@ -35,7 +35,7 @@ router.post("/test", async (req, res) => {
 
     const result = await sendSMS(
       targetPhone,
-      "Brave and Planet CRM - test SMS ishlayapti!",
+      "Hurmatli ota-ona, farzandingizning to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.\n",
     );
 
     res.json({
@@ -182,7 +182,7 @@ router.post(
           continue;
         }
 
-        const message = `Hurmatli ota-ona, ${debtor.student.fullName}ning ${month} oyi uchun to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.`;
+        const message = "Hurmatli ota-ona, farzandingizning to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.\n";
 
         const result = await sendSMS(phone, message);
 
