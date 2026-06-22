@@ -36,7 +36,7 @@ export async function sendDebtorSms(req: Request, res: Response) {
   });
   if (!payment) return res.status(404).json({ message: "To'lov topilmadi" });
 
-  const message = `Hurmatli ota-ona, ${payment.student.firstName} ning ${monthLabelUz(payment.month)} uchun to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet`;
+  const message = "Hurmatli ota-ona, farzandingizning to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.\n";
   let status = "SENT";
   let responsePayload = "";
   try {
@@ -70,7 +70,7 @@ export async function sendAllDebtorSms(req: Request, res: Response) {
   const logs = [];
   for (const debtor of debtors) {
     const payment = await prisma.payment.findUniqueOrThrow({ where: { id: debtor.paymentId }, include: { student: true } });
-    const message = `Hurmatli ota-ona, ${payment.student.firstName} ning ${monthLabelUz(payment.month)} uchun to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet`;
+    const message = "Hurmatli ota-ona, farzandingizning to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.\n";
     let status = "SENT";
     let responsePayload = "";
     try {

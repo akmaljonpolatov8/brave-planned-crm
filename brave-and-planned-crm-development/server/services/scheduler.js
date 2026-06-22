@@ -56,7 +56,7 @@ export function startScheduler() {
             continue;
           }
 
-          const message = `Hurmatli ${debtor.student.parentName || "ota-ona"}, ${debtor.student.fullName}ning ${prevMonth} oyi uchun ${(debtor.amount || 0).toLocaleString()} so'm to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet ta'lim markazi.`;
+          const message = "Hurmatli ota-ona, farzandingizning to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.\n";
 
           try {
             const result = await sendSMS(phone, message);

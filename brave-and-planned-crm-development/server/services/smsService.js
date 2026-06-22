@@ -12,6 +12,7 @@ function isPlaceholder(value) {
     "your-nickname-uuid-from-nick-names-endpoint",
     "your-textup-email@example.com",
     "your-textup-password",
+    "your-template-id-from-templates-endpoint",
   ]);
   return !value || placeholders.has(String(value).trim());
 }
@@ -72,6 +73,7 @@ export function isCredentialError(errorMessage = "") {
 export async function sendSMS(phone, message) {
   const userId = process.env.TEXTUP_USER_ID;
   const nicknameId = process.env.TEXTUP_NICKNAME_ID;
+  const templateId = process.env.TEXTUP_TEMPLATE_ID;
 
   if (isPlaceholder(userId)) {
     return {
@@ -99,6 +101,15 @@ export async function sendSMS(phone, message) {
       body.nicknameId = nicknameId;
     }
 
+    if (templateId && !isPlaceholder(templateId)) {
+      body.templateId = templateId;
+    }
+
+    console.log("📤 TextUP Request:", {
+      url: `${SMS_BASE}/v1/send`,
+      body,
+    });
+
     const res = await fetch(`${SMS_BASE}/v1/send`, {
       method: "POST",
       headers: {
@@ -108,7 +119,15 @@ export async function sendSMS(phone, message) {
       body: JSON.stringify(body),
     });
 
-    const result = await res.json().catch(() => ({}));
+    const rawResponse = await res.text();
+    console.log(`📥 TextUP Response (${res.status}):`, rawResponse);
+
+    let result = {};
+    try {
+      result = JSON.parse(rawResponse);
+    } catch (e) {
+      console.error("❌ Failed to parse TextUP response as JSON");
+    }
 
     if (!res.ok) {
       console.error(`❌ TextUP send error to ${cleanedPhone}:`, result);

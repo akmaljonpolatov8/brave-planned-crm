@@ -64,7 +64,7 @@ export async function sendMonthlyDebtNotifications() {
   });
 
   for (const payment of unpaid) {
-    const message = `Hurmatli ota-ona, ${payment.student.firstName} ning ${monthLabelUz(month)} uchun to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet`;
+    const message = "Hurmatli ota-ona, farzandingizning to'lovi amalga oshirilmagan. Iltimos to'lovni amalga oshiring. Brave and Planet o'quv markazi.\n";
     let status = "SENT";
     let responsePayload = "";
 
