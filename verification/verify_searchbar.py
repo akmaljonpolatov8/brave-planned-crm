@@ -1,0 +1,1 @@
+print("Verification script started")
