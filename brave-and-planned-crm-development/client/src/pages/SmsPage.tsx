@@ -120,11 +120,25 @@ export function SmsPage() {
                   {students.map((s, i) => {
                     const isSelected = selectedIds.has(s.id);
                     return (
-                      <div key={s.id} onClick={() => toggleStudent(s.id)} style={{
-                        display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: 'pointer',
-                        borderBottom: i < students.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                        background: isSelected ? 'rgba(255,214,98,0.06)' : 'transparent',
-                      }}>
+                      <div
+                        key={s.id}
+                        role="checkbox"
+                        aria-checked={isSelected}
+                        tabIndex={0}
+                        onClick={() => toggleStudent(s.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleStudent(s.id);
+                          }
+                        }}
+                        className="focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-inset"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: 'pointer',
+                          borderBottom: i < students.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                          background: isSelected ? 'rgba(255,214,98,0.06)' : 'transparent',
+                        }}
+                      >
                         <div style={{
                           width: '18px', height: '18px', borderRadius: '4px', flexShrink: 0,
                           border: isSelected ? '2px solid #FFD662' : '2px solid rgba(255,255,255,0.2)',
