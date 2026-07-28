@@ -9,3 +9,7 @@
 ## 2025-05-15 - Sticky Context for Large Tables
 **Learning:** For data-heavy tables that scroll horizontally, keeping the primary identifier (e.g., name) sticky is crucial for maintaining user context. Using `border-separate` and `outline` on sticky cells avoids border-collapse rendering issues.
 **Action:** Implement sticky primary columns for all wide horizontal-scrolling tables.
+
+## 2025-07-28 - Optimized Modal Accessibility and Key Listeners
+**Learning:** Adding key listeners to React modals can cause effect churn if the callback changes frequently. Utilizing a `useRef` to hold the latest closure allows the effect dependency array to remain empty, preventing churn and improving performance while keeping key handlers safe. Always verify custom interactive close buttons have descriptive, localized `aria-label` and `title` fields.
+**Action:** Use the `useRef` callback pattern for global or window-bound listeners to avoid unnecessary effect teardown and registration.
