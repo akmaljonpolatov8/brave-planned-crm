@@ -9,3 +9,7 @@
 ## 2025-05-15 - Sticky Context for Large Tables
 **Learning:** For data-heavy tables that scroll horizontally, keeping the primary identifier (e.g., name) sticky is crucial for maintaining user context. Using `border-separate` and `outline` on sticky cells avoids border-collapse rendering issues.
 **Action:** Implement sticky primary columns for all wide horizontal-scrolling tables.
+
+## 2025-05-16 - Guided Search Shortcuts
+**Learning:** Adding keyboard shortcuts (like `⌘K` or `Ctrl+K`) to focus search elements makes navigation incredibly fluid for power users. However, always include active-element guards (e.g., ignoring when focused on inputs or textareas) to prevent focus theft and interference with typing. Localizing clear controls in Uzbek (`Tozalash`) maintains the language theme of the application.
+**Action:** Always include focus-theft guards for key listeners and ensure fallback labels are localized for full accessibility.
