@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export function Modal({
   title,
@@ -10,6 +10,11 @@ export function Modal({
   onClose: () => void;
 }) {
   const [isMobile, setIsMobile] = useState(false);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     setIsMobile(window.innerWidth < 640);
@@ -18,15 +23,27 @@ export function Modal({
     return () => window.removeEventListener('resize', handler);
   }, []);
 
-  // Prevent body scroll when modal is open
+  // Prevent body scroll and listen for Escape key
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onCloseRef.current();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   return (
     <div
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
       style={{
         position: 'fixed',
         top: 0,
@@ -61,11 +78,13 @@ export function Modal({
           justifyContent: 'space-between',
           marginBottom: '20px',
         }}>
-          <h3 style={{ color: '#FFD662', fontSize: '18px', fontWeight: 700, margin: 0 }}>
+          <h3 id="modal-title" style={{ color: '#FFD662', fontSize: '18px', fontWeight: 700, margin: 0 }}>
             {title}
           </h3>
           <button
             onClick={onClose}
+            aria-label="Yopish"
+            title="Yopish"
             style={{
               background: 'rgba(255,255,255,0.08)',
               border: '1px solid rgba(255,255,255,0.15)',
