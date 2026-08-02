@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Menu, X } from "lucide-react";
@@ -40,7 +40,12 @@ function SidebarContent({ onClose }: { onClose: () => void }) {
           <div style={{ color: '#FFD662', fontWeight: 700, fontSize: '18px' }}>Brave & Planet</div>
           <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '2px' }}>Ta'lim markazi CRM</div>
         </div>
-        <button onClick={onClose} style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px' }}>
+        <button
+          onClick={onClose}
+          aria-label="Yopish"
+          title="Yopish"
+          style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px' }}
+        >
           <X size={22} />
         </button>
       </div>
@@ -111,6 +116,17 @@ export function AppLayout() {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSidebarOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sidebarOpen]);
+
   return (
     <div style={{ minHeight: '100vh', background: '#2d1b4e' }}>
       {/* Sidebar Overlay — always via hamburger */}
@@ -141,6 +157,8 @@ export function AppLayout() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
             onClick={() => setSidebarOpen(true)}
+            aria-label="Menyuni ochish"
+            title="Menyuni ochish"
             style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '8px', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <Menu size={20} />
