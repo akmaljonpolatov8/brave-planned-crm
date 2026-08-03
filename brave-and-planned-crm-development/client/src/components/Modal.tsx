@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export function Modal({
   title,
@@ -10,70 +10,103 @@ export function Modal({
   onClose: () => void;
 }) {
   const [isMobile, setIsMobile] = useState(false);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     setIsMobile(window.innerWidth < 640);
     const handler = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', handler);
-    return () => window.removeEventListener('resize', handler);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  // Escape key support
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onCloseRef.current();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, []);
 
   return (
     <div
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
       style={{
-        position: 'fixed',
+        position: "fixed",
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
         zIndex: 99999,
-        display: 'flex',
-        alignItems: isMobile ? 'flex-end' : 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.75)',
-        padding: isMobile ? 0 : '16px',
+        display: "flex",
+        alignItems: isMobile ? "flex-end" : "center",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.75)",
+        padding: isMobile ? 0 : "16px",
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: '#1a0f2e',
-          border: isMobile ? 'none' : '1px solid rgba(255,214,98,0.2)',
-          borderRadius: isMobile ? '20px 20px 0 0' : '20px',
-          padding: isMobile ? '20px 16px 32px' : '28px',
-          width: '100%',
-          maxWidth: isMobile ? '100%' : '640px',
-          maxHeight: isMobile ? '92vh' : '90vh',
-          overflowY: 'auto',
-          WebkitOverflowScrolling: 'touch',
+          background: "#1a0f2e",
+          border: isMobile ? "none" : "1px solid rgba(255,214,98,0.2)",
+          borderRadius: isMobile ? "20px 20px 0 0" : "20px",
+          padding: isMobile ? "20px 16px 32px" : "28px",
+          width: "100%",
+          maxWidth: isMobile ? "100%" : "640px",
+          maxHeight: isMobile ? "92vh" : "90vh",
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
         }}
       >
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '20px',
-        }}>
-          <h3 style={{ color: '#FFD662', fontSize: '18px', fontWeight: 700, margin: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "20px",
+          }}
+        >
+          <h3
+            id="modal-title"
+            style={{
+              color: "#FFD662",
+              fontSize: "18px",
+              fontWeight: 700,
+              margin: 0,
+            }}
+          >
             {title}
           </h3>
           <button
             onClick={onClose}
+            aria-label="Yopish"
+            title="Yopish"
             style={{
-              background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '10px',
-              padding: '8px 14px',
-              color: 'rgba(255,255,255,0.7)',
-              fontSize: '14px',
-              cursor: 'pointer',
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: "10px",
+              padding: "8px 14px",
+              color: "rgba(255,255,255,0.7)",
+              fontSize: "14px",
+              cursor: "pointer",
             }}
           >
             ✕
