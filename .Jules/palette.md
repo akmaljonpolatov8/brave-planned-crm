@@ -9,3 +9,7 @@
 ## 2025-05-15 - Sticky Context for Large Tables
 **Learning:** For data-heavy tables that scroll horizontally, keeping the primary identifier (e.g., name) sticky is crucial for maintaining user context. Using `border-separate` and `outline` on sticky cells avoids border-collapse rendering issues.
 **Action:** Implement sticky primary columns for all wide horizontal-scrolling tables.
+
+## 2025-05-16 - Safe and Accessible Destructive Actions
+**Learning:** Destructive actions inside tabular lists (like removing students from a group) require a localized confirmation dialog to prevent accidental clicks. To ensure non-visual accessibility, the trigger button must include a personalized ARIA label that explicitly names the targeted entity.
+**Action:** Add confirmation prompts and dynamic, context-specific ARIA labels to all deletion/removal triggers in tables.

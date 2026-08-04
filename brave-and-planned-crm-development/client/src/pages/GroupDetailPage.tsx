@@ -59,7 +59,17 @@ export function GroupDetailPage() {
                 <td>{student.ota_phone || student.ona_phone || student.telefon || "-"}</td>
                 <td>{student.payment_paid ? "To'langan" : "To'lanmagan"}</td>
                 <td>
-                  <button className="btn-danger" onClick={async () => { await api.delete(`/groups/${id}/students/${student.id}`); load(); }}>
+                  <button
+                    className="btn-danger"
+                    aria-label={`${student.full_name}ni guruhdan olish`}
+                    onClick={async () => {
+                      if (confirm(`Rostdan ham ${student.full_name}ni guruhdan olib tashlamoqchimisiz?`)) {
+                        await api.delete(`/groups/${id}/students/${student.id}`);
+                        toast.success("O'quvchi guruhdan olindi");
+                        load();
+                      }
+                    }}
+                  >
                     Guruhdan olish
                   </button>
                 </td>
@@ -72,10 +82,10 @@ export function GroupDetailPage() {
       {studentModal ? (
         <Modal title="Yangi o'quvchi" onClose={() => setStudentModal(false)}>
           <div className="grid gap-4">
-            <input className="input" placeholder="F.I.Sh" value={studentForm.full_name} onChange={(e) => setStudentForm((v) => ({ ...v, full_name: e.target.value }))} />
-            <input className="input" placeholder="Ota telefoni" value={studentForm.ota_phone} onChange={(e) => setStudentForm((v) => ({ ...v, ota_phone: e.target.value }))} />
-            <input className="input" placeholder="Ona telefoni" value={studentForm.ona_phone} onChange={(e) => setStudentForm((v) => ({ ...v, ona_phone: e.target.value }))} />
-            <input className="input" placeholder="Telefon" value={studentForm.telefon} onChange={(e) => setStudentForm((v) => ({ ...v, telefon: e.target.value }))} />
+            <input className="input" aria-label="F.I.Sh (Familiya Ism Sharif)" placeholder="F.I.Sh" value={studentForm.full_name} onChange={(e) => setStudentForm((v) => ({ ...v, full_name: e.target.value }))} />
+            <input className="input" aria-label="Ota telefoni" placeholder="Ota telefoni" value={studentForm.ota_phone} onChange={(e) => setStudentForm((v) => ({ ...v, ota_phone: e.target.value }))} />
+            <input className="input" aria-label="Ona telefoni" placeholder="Ona telefoni" value={studentForm.ona_phone} onChange={(e) => setStudentForm((v) => ({ ...v, ona_phone: e.target.value }))} />
+            <input className="input" aria-label="Telefon" placeholder="Telefon" value={studentForm.telefon} onChange={(e) => setStudentForm((v) => ({ ...v, telefon: e.target.value }))} />
           </div>
           <div className="mt-5 flex justify-end gap-3">
             <button className="btn-secondary" onClick={() => setStudentModal(false)}>Bekor qilish</button>
