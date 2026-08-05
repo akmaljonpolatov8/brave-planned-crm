@@ -53,6 +53,7 @@ export type Student = {
   notes?: string | null;
   joined_at?: string;
   created_at?: string;
+  payment_paid?: boolean | number;
 };
 
 export type Payment = {
