@@ -63,11 +63,22 @@ export function PaymentsPage() {
     <PageShell title="To'lovlar" description="Guruh va oy tanlang — har bir o'quvchi uchun to'lov holatini belgilang.">
       {/* Filters */}
       <div className="panel p-4 grid gap-4 md:grid-cols-3" style={{ marginBottom: '16px' }}>
-        <select className="input" value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+        <select
+          className="input focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:outline-none"
+          aria-label="Guruhni tanlang"
+          value={groupId}
+          onChange={(e) => setGroupId(e.target.value)}
+        >
           <option value="">— Guruh tanlang —</option>
           {groups.map((g) => (<option key={g.id} value={g.id}>{g.name}</option>))}
         </select>
-        <input className="input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+        <input
+          className="input focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:outline-none"
+          aria-label="Oy va yilni tanlang"
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+        />
         {groupId && payments.length > 0 && (
           <div className="flex items-center gap-3 text-sm">
             <span style={{ color: '#4ade80' }}>✓ {paidCount} to'lagan</span>
@@ -109,6 +120,8 @@ export function PaymentsPage() {
                     <button
                       onClick={() => togglePaid(p)}
                       disabled={toggling === p.student_id}
+                      className="focus-visible:ring-2 focus-visible:ring-yellow-400 focus-visible:outline-none focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a0a2e] transition-all"
+                      aria-label={`${p.full_name} — To'lov holatini o'zgartirish. Hozirgi holat: ${p.paid ? "To'langan" : "To'lanmagan"}`}
                       style={{
                         padding: '8px 16px',
                         borderRadius: '8px',

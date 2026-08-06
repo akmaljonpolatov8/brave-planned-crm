@@ -9,3 +9,7 @@
 ## 2025-05-15 - Sticky Context for Large Tables
 **Learning:** For data-heavy tables that scroll horizontally, keeping the primary identifier (e.g., name) sticky is crucial for maintaining user context. Using `border-separate` and `outline` on sticky cells avoids border-collapse rendering issues.
 **Action:** Implement sticky primary columns for all wide horizontal-scrolling tables.
+
+## 2025-05-16 - Focus Indicators on Custom Inline-Styled Controls
+**Learning:** Custom interactive elements designed with heavy inline styling (such as payment status toggles) often omit standard focus rings and aria-labels. Adding Tailwind's `focus-visible:ring-2` alongside precise Uzbek context `aria-label` provides a seamless screen-reader and keyboard navigation experience.
+**Action:** Always combine custom inline styles with standard focus utility classes and complete localized screen-reader descriptions.
