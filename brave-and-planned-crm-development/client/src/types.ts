@@ -51,6 +51,7 @@ export type Student = {
   groups?: string | string[];
   status: string;
   notes?: string | null;
+  payment_paid?: boolean | number;
   joined_at?: string;
   created_at?: string;
 };
